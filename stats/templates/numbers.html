@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    {% load static %}
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Номера телефонов</title>
+
+    <link rel="stylesheet" href="{% static 'css/numbers.css' %}" />
+    <link rel="stylesheet" href="{% static 'css/header.css' %}" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <link rel="icon" type="image/x-icon" href="{% static 'images/KBK.ico' %}" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+
+    <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="{% static 'js/numbers.js' %}"></script>
+    <script>
+      window.companies = [
+        {% for company in companies %}
+          { id: "{{ company.id }}", name: "{{ company.name|escapejs }}" }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+      ];
+      window.tariffs = [
+        {% for tariff in tariffs %}
+          { id: "{{ tariff.id }}", name: "{{ tariff.name|escapejs }} ({{ tariff.operator.name|escapejs }})", operator: "{{ tariff.operator.name|escapejs }}" }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+      ];
+      window.employees = [
+        {% for employee in employees %}
+          { 
+            id: "{{ employee.id }}", 
+            name: "{{ employee.last_name }} {{ employee.first_name }} {{ employee.middle_name|default:'' }} ({{ employee.personnel_number }}) - {{ employee.company.name|escapejs }}", 
+            personnel: "{{ employee.personnel_number|escapejs }}", 
+            company: "{{ employee.company.name|escapejs }}",
+            companyId: "{{ employee.company.id }}"
+          }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+      ];
+      window.operators = [
+        {% for operator in operators %}
+          { id: "{{ operator.id }}", name: "{{ operator.name|escapejs }}" }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+      ];
+    </script>
+  </head>
+  <body style="overflow-x: hidden;">
+    {% include 'header.html' %}
+
+    <h1>Управление номерами телефонов</h1>
+
+    <ul class="tab-menu">
+      <li class="active" data-tab="phone-numbers-tab">Номера телефонов</li>
+      <li data-tab="employee-phones-tab">Номера сотрудников</li>
+      <li data-tab="import-tab">Импорт номеров</li>
+      <li class="add-tab" id="openAddModal">Добавить</li>
+    </ul>
+
+    <div id="phone-numbers-tab" class="tab-content active">
+      <h2>Номера телефонов</h2>
+      <div class="filter-container">
+        <div class="custom-filter-container">
+          <label for="operatorFilter">Оператор:</label>
+          <div class="custom-filter">
+            <input type="text" id="operatorFilter" placeholder="Все операторы" />
+            <ul class="custom-drop" data-filter="operator"></ul>
+          </div>
+        </div>
+        <div class="custom-filter-container">
+          <label for="tariffFilter">Тариф:</label>
+          <div class="custom-filter">
+            <input type="text" id="tariffFilter" placeholder="Все тарифы" />
+            <ul class="custom-drop" data-filter="tariff"></ul>
+          </div>
+        </div>
+        <div class="custom-filter-container">
+          <label for="companyFilter">Компания:</label>
+          <div class="custom-filter">
+            <input type="text" id="companyFilter" placeholder="Все компании" />
+            <ul class="custom-drop" data-filter="company"></ul>
+          </div>
+        </div>
+      </div>
+      <table id="phone-number-table" border="1">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Оператор</th>
+            <th>Номер</th>
+            <th>Лицевой счет</th>
+            <th>Тариф</th>
+            <th>Компания</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for phone_number in phone_numbers %}
+            <tr>
+              <td>{{ phone_number.id }}</td>
+              <td>{{ phone_number.tariff.operator.name|default:'—' }}</td>
+              <td>{{ phone_number.number }}</td>
+              <td>{{ phone_number.account_number }}</td>
+              <td>{{ phone_number.tariff.name }}</td>
+              <td>{{ phone_number.company_number.company.name|default:'—' }}</td>
+              <td class="actions-column">
+                <div class="button-container">
+                  <div class="button-row">
+                    <button type="button" class="update-phone-btn" data-id="{{ phone_number.id }}" data-number="{{ phone_number.number }}" data-account-number="{{ phone_number.account_number }}" data-tariff="{{ phone_number.tariff.id }}" data-tariff-name="{{ phone_number.tariff.name }} ({{ phone_number.tariff.operator.name|default:'—' }})" data-operator-name="{{ phone_number.tariff.operator.name|default:'—' }}" data-company-id="{% if phone_number.company_number %}{{ phone_number.company_number.company.id }}{% endif %}">Изменить</button>
+                    <button type="button" class="delete-phone-btn" data-id="{{ phone_number.id }}" data-number="{{ phone_number.number }}">Удалить</button>
+                  </div>
+                  <div class="button-row">
+                    <button type="button" class="issue-phone-btn" data-phone-id="{{ phone_number.id }}" data-phone-number="{{ phone_number.number }}" data-company-id="{% if phone_number.company_number %}{{ phone_number.company_number.company.id }}{% endif %}">Выдать</button>
+                    <button type="button" class="history-phone-btn" data-phone-id="{{ phone_number.id }}" data-phone-number="{{ phone_number.number }}">История</button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div id="employee-phones-tab" class="tab-content">
+      <h2>Номера сотрудников</h2>
+      <div class="filter-container">
+        <div class="custom-filter-container">
+          <label for="companyFilterEmployee">Компания:</label>
+          <div class="custom-filter">
+            <input type="text" id="companyFilterEmployee" placeholder="Все компании" />
+            <ul class="custom-drop" data-filter="company"></ul>
+          </div>
+        </div>
+      </div>
+      <table id="employee-phone-table" border="1">
+        <thead>
+          <tr>
+            <th>Компания</th>
+            <th>ФИО</th>
+            <th>Таб. номер</th>
+            <th>Номер телефона</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for employee in employees %}
+            {% with numbers=employee.phone_numbers.all %}
+              {% if numbers.exists %}
+                {% for phone in numbers %}
+                  <tr>
+                    <td>{{ employee.company.name|default:'—' }}</td>
+                    <td>{{ employee.last_name }} {{ employee.first_name }} {{ employee.middle_name|default:'' }}</td>
+                    <td>{{ employee.personnel_number }}</td>
+                    <td>{{ phone.phone_number.number }}</td>
+                    <td>
+                      <button class="return-phone-btn" data-phone-id="{{ phone.phone_number.id }}" data-phone-number="{{ phone.phone_number.number }}">Вернуть</button>
+                      <button class="transfer-phone-btn" data-phone-id="{{ phone.phone_number.id }}" data-phone-number="{{ phone.phone_number.number }}">Отдать</button>
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td>{{ employee.company.name|default:'—' }}</td>
+                  <td>{{ employee.last_name }} {{ employee.first_name }} {{ employee.middle_name|default:'' }}</td>
+                  <td>{{ employee.personnel_number }}</td>
+                  <td>—</td>
+                  <td>
+                    <button class="return-phone-btn" disabled>Вернуть</button>
+                    <button class="transfer-phone-btn" disabled>Отдать</button>
+                  </td>
+                </tr>
+              {% endif %}
+            {% endwith %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div id="import-tab" class="tab-content">
+      <h2>Импорт номеров</h2>
+      <p class="csv-hint">CSV-файл должен содержать столбцы: Оператор, Номер, Лиц. счёт, Тариф, Компания.</p>
+      <div class="import-container">
+        <form id="importForm" method="POST" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="form-group full-width">
+            <label for="csvFile">Выберите CSV файл:</label>
+            <input type="file" id="csvFile" name="csv_file" accept=".csv" required />
+            <span class="error-message" id="errorCsvFile"></span>
+          </div>
+          <button class="submit-button2" type="submit">Импортировать</button>
+        </form>
+        <div id="importResult" style="margin-top: 20px;"></div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="addModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalCloseAdd">×</span>
+        <h3 class="modal-header">Добавить Номер Телефона</h3>
+        <form id="addPhoneForm" method="POST">
+          {% csrf_token %}
+          <div class="form-row">
+            <div class="form-group half-width">
+              <label for="newPhoneNumber">Номер:</label>
+              <input class="input-field" type="text" name="new_phone_number" id="newPhoneNumber" placeholder="Номер" required />
+              <span class="error-message" id="errorNewPhoneNumber"></span>
+            </div>
+            <div class="form-group half-width">
+              <label for="newPhoneAccountNumber">Лицевой номер счета:</label>
+              <input class="input-field" type="text" name="new_phone_account_number" id="newPhoneAccountNumber" placeholder="Лицевой номер счета" required />
+              <span class="error-message" id="errorNewAccountNumber"></span>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group half-width">
+              <label for="newPhoneTariffDisplay">Тариф:</label>
+              <div class="custom-filter-container">
+                <div class="custom-filter">
+                  <input type="text" id="newPhoneTariffDisplay" placeholder="Выберите тариф" />
+                  <ul class="custom-drop" data-filter="newTariff"></ul>
+                </div>
+                <select class="input-field hidden-select" name="new_phone_tariff" id="newPhoneTariff" required>
+                  {% for tariff in tariffs %}
+                    <option value="{{ tariff.id }}">{{ tariff.name }} ({{ tariff.operator.name }})</option>
+                  {% endfor %}
+                </select>
+                <span class="error-message" id="errorNewTariff">Пожалуйста, выберите тариф</span>
+              </div>
+            </div>
+            <div class="form-group half-width">
+              <label for="newPhoneCompanyDisplay">Компания:</label>
+              <div class="custom-filter-container">
+                <div class="custom-filter">
+                  <input type="text" id="newPhoneCompanyDisplay" placeholder="Выберите компанию" required />
+                  <ul class="custom-drop" data-filter="newCompany"></ul>
+                </div>
+                <select class="input-field hidden-select" name="new_phone_company" id="newPhoneCompany" required>
+                  {% for company in companies %}
+                    <option value="{{ company.id }}">{{ company.name }}</option>
+                  {% endfor %}
+                </select>
+                <span class="error-message" id="errorNewCompany">Пожалуйста, выберите компанию</span>
+              </div>
+            </div>
+          </div>
+          <button class="submit-button" type="submit" name="add_phone">Добавить</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="updatePhoneModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalCloseUpdate">×</span>
+        <h3 class="modal-header">Изменить Номер Телефона</h3>
+        <form id="modalUpdatePhoneForm" method="POST">
+          {% csrf_token %}
+          <input type="hidden" name="update_phone" id="modalPhoneId" value="" />
+          <div class="form-row">
+            <div class="form-group half-width">
+              <label for="modalPhoneNumber">Номер:</label>
+              <input class="input-field" type="text" name="phone_number_number" id="modalPhoneNumber" required readonly />
+              <span class="error-message" id="errorModalPhoneNumber"></span>
+            </div>
+            <div class="form-group half-width">
+              <label for="modalPhoneAccountNumber">Лицевой номер счета:</label>
+              <input class="input-field" type="text" name="phone_number_account_number" id="modalPhoneAccountNumber" required />
+              <span class="error-message" id="errorModalAccountNumber"></span>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group half-width">
+              <label for="modalPhoneTariffDisplay">Тариф:</label>
+              <div class="custom-filter-container">
+                <div class="custom-filter">
+                  <input type="text" id="modalPhoneTariffDisplay" placeholder="Выберите тариф" />
+                  <ul class="custom-drop" data-filter="modalTariff"></ul>
+                </div>
+                <select class="input-field hidden-select" name="phone_number_tariff" id="modalPhoneTariff" required>
+                  {% for tariff in tariffs %}
+                    <option value="{{ tariff.id }}">{{ tariff.name }} ({{ tariff.operator.name }})</option>
+                  {% endfor %}
+                </select>
+                <span class="error-message" id="errorModalTariff">Пожалуйста, выберите тариф</span>
+              </div>
+            </div>
+            <div class="form-group half-width">
+              <label for="modalPhoneCompanyDisplay">Компания:</label>
+              <div class="custom-filter-container">
+                <div class="custom-filter">
+                  <input type="text" id="modalPhoneCompanyDisplay" placeholder="Выберите компанию" required />
+                  <ul class="custom-drop" data-filter="modalCompany"></ul>
+                </div>
+                <select class="input-field hidden-select" name="phone_number_company" id="modalPhoneCompany" required>
+                  {% for company in companies %}
+                    <option value="{{ company.id }}">{{ company.name }}</option>
+                  {% endfor %}
+                </select>
+                <span class="error-message" id="errorModalCompany">Пожалуйста, выберите компанию</span>
+              </div>
+            </div>
+          </div>
+          <button class="submit-button" type="submit">Изменить</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Модальное окно для подтверждения удаления -->
+    <div class="modal-overlay" id="deleteConfirmModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalCloseDelete">×</span>
+        <h3 class="modal-header">Подтверждение удаления</h3>
+        <p id="deleteConfirmText">
+          Вы уверены, что хотите удалить номер <strong id="deletePhoneNumber"></strong>?
+        </p>
+        <form id="deletePhoneForm" method="POST">
+          {% csrf_token %}
+          <input type="hidden" name="delete_phone" id="deletePhoneId" value="" />
+          <div class="confirm-buttons">
+            <button type="submit" class="confirm-yes">Да</button>
+            <button type="button" class="confirm-no" id="cancelDelete">Нет</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Модальное окно для выдачи номера -->
+    <div class="modal-overlay" id="issuePhoneModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalCloseIssue">×</span>
+        <h3 class="modal-header">Выдать Номер <span id="modalPhoneNumber"></span></h3>
+        <form id="issuePhoneForm" method="POST">
+          {% csrf_token %}
+          <input type="hidden" id="phoneId" name="phone_id" />
+          <input type="hidden" id="companyId" name="company_id" />
+          <div class="form-row">
+            <div class="form-group half-width">
+              <label for="employeeSelect">Выберите сотрудника:</label>
+              <div class="custom-filter-container">
+                <div class="custom-filter">
+                  <input type="text" id="employeeSelectDisplay" placeholder="Выберите сотрудника" />
+                  <ul class="custom-drop" data-filter="employee"></ul>
+                </div>
+                <select class="input-field hidden-select" id="employeeSelect" name="employee_id" required>
+                  {% for employee in employees %}
+                    <option value="{{ employee.id }}" data-personnel="{{ employee.personnel_number }}" data-company-id="{{ employee.company.id }}">{{ employee.last_name }} {{ employee.first_name }} {{ employee.middle_name|default:'' }} ({{ employee.personnel_number }}) - {{ employee.company.name }}</option>
+                  {% endfor %}
+                </select>
+                <span class="error-message" id="errorEmployee">Пожалуйста, выберите сотрудника</span>
+              </div>
+            </div>
+            <div class="form-group half-width">
+              <label for="personnelNumber">Табельный номер:</label>
+              <p id="personnelNumber" class="input-field" style="background-color: #f0f0f0; padding: 10px;"></p>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group full-width">
+              <label for="comment">Комментарий:</label>
+              <textarea class="input-field textarea-field" id="comment" name="comment" placeholder="Комментарий"></textarea>
+            </div>
+          </div>
+          <button class="submit-button" type="submit">Подтвердить</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Модальное окно для истории номера -->
+    <div class="modal-overlay" id="historyPhoneModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalCloseHistory">×</span>
+        <h3 class="modal-header">История Номера <span id="historyPhoneNumber"></span></h3>
+        <div id="historyContent">
+          <!-- История будет вставлена через JavaScript -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Модальное окно для возврата номера -->
+    <div class="modal-overlay" id="returnPhoneModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalCloseReturn">×</span>
+        <h3 class="modal-header">Вернуть Номер <span id="returnModalPhoneNumber"></span></h3>
+        <form id="returnPhoneForm" method="POST">
+          {% csrf_token %}
+          <input type="hidden" id="returnPhoneId" name="phone_id" />
+          <div class="form-row">
+            <div class="form-group">
+              <label for="returnComment">Комментарий:</label>
+              <textarea class="input-field" id="returnComment" name="comment" placeholder="Комментарий"></textarea>
+            </div>
+          </div>
+          <button class="submit-button" type="submit">Подтвердить</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Модальное окно для передачи номера -->
+    <div class="modal-overlay" id="transferPhoneModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalCloseTransfer">×</span>
+        <h3 class="modal-header">Отдать Номер <span id="transferModalPhoneNumber"></span></h3>
+        <form id="transferPhoneForm" method="POST">
+          {% csrf_token %}
+          <input type="hidden" id="transferPhoneId" name="phone_id" />
+          <p>Вы уверены, что хотите отдать этот номер?</p>
+          <div class="confirm-buttons">
+            <button type="submit" class="confirm-yes">Да</button>
+            <button type="button" class="confirm-no" id="cancelTransfer">Нет</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      $(document).ready(function () {
+        const options = {
+          language: { url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/ru.json' },
+          paging: true,
+          searching: true,
+          ordering: true,
+          info: true,
+          dom: 'lfrtip'
+        };
+
+        var phoneTable = $('#phone-number-table').DataTable(options);
+        var employeeTable = $('#employee-phone-table').DataTable(options);
+
+        const operatorNames = window.operators.map(o => o.name).sort((a, b) => a.localeCompare(b, 'ru'));
+        const tariffNames = window.tariffs.map(t => t.name).sort((a, b) => a.localeCompare(b, 'ru'));
+        const companyNames = window.companies.map(c => c.name).sort((a, b) => a.localeCompare(b, 'ru'));
+
+        function showCustomList(inputElement, dropElement, items, filterType, selectElement, maxItems = Infinity, companyId = null) {
+          const filterValue = inputElement.val().toLowerCase().trim();
+          let filteredItems = items;
+
+          if (filterType === 'tariff') {
+            const selectedOperator = $('#operatorFilter').val().trim();
+            if (selectedOperator) {
+              filteredItems = items.filter(item => {
+                const tariff = window.tariffs.find(t => t.name === item);
+                return tariff && tariff.operator === selectedOperator;
+              });
+            }
+          }
+
+          if (filterType === 'employee' && companyId) {
+            filteredItems = items.filter(item => {
+              const employee = window.employees.find(emp => emp.name === item);
+              return employee && employee.companyId === companyId;
+            });
+          }
+
+          filteredItems = filterValue
+            ? filteredItems.filter(item => item.toLowerCase().includes(filterValue))
+            : filteredItems;
+
+          filteredItems.sort((a, b) => a.localeCompare(b, 'ru'));
+          const displayItems = filteredItems.slice(0, maxItems);
+
+          dropElement.empty();
+          displayItems.forEach(item => {
+            const listItem = $('<li></li>').text(item).appendTo(dropElement);
+            listItem.click(() => {
+              inputElement.val(item);
+              dropElement.css('height', '0');
+              dropElement.empty();
+
+              if (filterType === 'tariff') {
+                const selectedTariff = window.tariffs.find(t => t.name === item);
+                if (selectedTariff) {
+                  $('#operatorFilter').val(selectedTariff.operator);
+                }
+              }
+
+              if (selectElement) {
+                if (filterType === 'newTariff' || filterType === 'modalTariff') {
+                  const selectedTariff = window.tariffs.find(t => t.name === item);
+                  selectElement.val(selectedTariff ? selectedTariff.id : '');
+                } else if (filterType === 'newCompany' || filterType === 'modalCompany') {
+                  const selectedCompany = window.companies.find(c => c.name === item);
+                  selectElement.val(selectedCompany ? selectedCompany.id : '');
+                } else if (filterType === 'employee') {
+                  const selectedEmployee = window.employees.find(emp => emp.name === item);
+                  selectElement.val(selectedEmployee ? selectedEmployee.id : '');
+                  $('#personnelNumber').text(selectedEmployee ? selectedEmployee.personnel : '');
+                }
+              } else {
+                if ($('#phone-numbers-tab').hasClass('active')) {
+                  applyFilters();
+                } else {
+                  applyEmployeeFilters();
+                }
+              }
+            });
+          });
+
+          dropElement.css('height', displayItems.length > 0 ? 'auto' : '0');
+        }
+
+        function applyFilters() {
+          const operatorFilter = $('#operatorFilter').val().trim();
+          const tariffFilter = $('#tariffFilter').val().trim();
+          const companyFilter = $('#companyFilter').val().trim();
+
+          phoneTable.columns(1).search(operatorFilter);
+          phoneTable.columns(4).search(tariffFilter);
+          phoneTable.columns(5).search(companyFilter);
+          phoneTable.draw();
+        }
+
+        function applyEmployeeFilters() {
+          const companyFilter = $('#companyFilterEmployee').val().trim();
+          employeeTable.columns(0).search(companyFilter);
+          employeeTable.draw();
+        }
+
+        applyFilters();
+        applyEmployeeFilters();
+
+        $('#phone-numbers-tab .custom-filter input').each(function () {
+          const input = $(this);
+          const drop = input.siblings('.custom-drop');
+          const filterType = drop.data('filter');
+          const items = filterType === 'operator' ? operatorNames : 
+                        filterType === 'tariff' ? tariffNames : 
+                        companyNames;
+
+          input.on('click input', function () {
+            showCustomList(input, drop, items, filterType, null, Infinity);
+          });
+
+          input.on('change', function () {
+            if (filterType === 'operator') {
+              $('#tariffFilter').val('');
+              const tariffDrop = $('#tariffFilter').siblings('.custom-drop');
+              showCustomList($('#tariffFilter'), tariffDrop, tariffNames, 'tariff', null, Infinity);
+            }
+            applyFilters();
+          });
+        });
+
+        $('#employee-phones-tab .custom-filter input').each(function () {
+          const input = $(this);
+          const drop = input.siblings('.custom-drop');
+          const items = companyNames;
+
+          input.on('click input', function () {
+            showCustomList(input, drop, items, 'company', null, Infinity);
+          });
+
+          input.on('change', function () {
+            applyEmployeeFilters();
+          });
+        });
+
+        $('.modal-content .custom-filter input').each(function () {
+          const input = $(this);
+          const drop = input.siblings('.custom-drop');
+          const selectElement = input.parent().siblings('select');
+          const filterType = drop.data('filter');
+
+          input.on('click input', function () {
+            let items;
+            let companyId = null;
+
+            if (filterType.includes('Tariff')) {
+              items = tariffNames;
+            } else if (filterType.includes('Company')) {
+              items = companyNames;
+            } else {
+              companyId = $('#companyId').val();
+              items = window.employees.map(emp => emp.name).sort((a, b) => a.localeCompare(b, 'ru'));
+            }
+            showCustomList(input, drop, items, filterType, selectElement, Infinity, companyId);
+          });
+        });
+
+        $(document).click(function (e) {
+          $('.custom-filter input').each(function () {
+            const input = $(this);
+            const drop = input.siblings('.custom-drop');
+            if (!input.is(e.target) && !drop.is(e.target) && drop.has(e.target).length === 0) {
+              drop.css('height', '0');
+              drop.empty();
+            }
+          });
+        });
+
+        $('.tab-menu li').not('.add-tab').click(function () {
+          var tabId = $(this).data('tab');
+          $('.tab-menu li').removeClass('active');
+          $(this).addClass('active');
+          $('.tab-content').removeClass('active').hide();
+          $('#' + tabId).addClass('active').show();
+        });
+
+        function validatePhoneNumber(value) {
+          return /^\d{10}$/.test(value);
+        }
+
+        function validateAccountNumber(value) {
+          return /^\d{12}$/.test(value);
+        }
+
+        function validateCustomSelect(inputField, errorElement, items) {
+          const value = inputField.val().trim();
+          const isValid = value !== '' && items.includes(value);
+          
+          if (!isValid) {
+            inputField.addClass('invalid');
+            if (value === '') {
+              errorElement.text('Пожалуйста, выберите значение').show();
+            } else {
+              errorElement.text('Значение не соответствует ни одному из предложенных вариантов').show();
+            }
+          } else {
+            inputField.removeClass('invalid');
+            errorElement.hide();
+          }
+          return isValid;
+        }
+
+        $('#openAddModal').click(function () {
+          $('#addModal').fadeIn();
+          $('#addPhoneForm')[0].reset();
+          $('#addPhoneForm .error-message').hide();
+          $('#newPhoneTariffDisplay').val('');
+          $('#newPhoneCompanyDisplay').val('');
+          $('#addPhoneForm .input-field').removeClass('invalid');
+          $('#addPhoneForm .custom-filter input').removeClass('invalid');
+        });
+        $('#modalCloseAdd, #addModal').click(function (e) {
+          if (e.target !== this) return;
+          $('#addModal').fadeOut();
+        });
+
+        $('#addPhoneForm').on('submit', function (e) {
+          e.preventDefault();
+          var form = $(this);
+          var phoneNumber = $('#newPhoneNumber').val();
+          var accountNumber = $('#newPhoneAccountNumber').val();
+          var tariffInput = $('#newPhoneTariffDisplay');
+          var companyInput = $('#newPhoneCompanyDisplay');
+
+          var isValid = true;
+          if (!validatePhoneNumber(phoneNumber)) {
+            $('#errorNewPhoneNumber').text('Номер телефона должен содержать ровно 10 цифр').show();
+            $('#newPhoneNumber').addClass('invalid');
+            isValid = false;
+          } else {
+            $('#errorNewPhoneNumber').hide();
+            $('#newPhoneNumber').removeClass('invalid');
+          }
+          if (!validateAccountNumber(accountNumber)) {
+            $('#errorNewAccountNumber').text('Лицевой номер должен содержать ровно 12 цифр').show();
+            $('#newPhoneAccountNumber').addClass('invalid');
+            isValid = false;
+          } else {
+            $('#errorNewAccountNumber').hide();
+            $('#newPhoneAccountNumber').removeClass('invalid');
+          }
+          if (!validateCustomSelect(tariffInput, $('#errorNewTariff'), tariffNames)) {
+            isValid = false;
+          }
+          if (!validateCustomSelect(companyInput, $('#errorNewCompany'), companyNames)) {
+            isValid = false;
+          }
+
+          if (!isValid) return;
+
+          $.ajax({
+            url: '/numbers/',
+            type: 'POST',
+            data: {
+              new_phone_number: phoneNumber,
+              check_unique: true,
+              csrfmiddlewaretoken: $('input[name="csrfmiddlewaretoken"]').val()
+            },
+            success: function (response) {
+              if (response.exists) {
+                $('#errorNewPhoneNumber').text('Такой номер уже существует').show();
+                $('#newPhoneNumber').addClass('invalid');
+              } else {
+                $.ajax({
+                  url: '/numbers/',
+                  type: 'POST',
+                  data: form.serialize() + '&add_phone=true',
+                  success: function (response) {
+                    if (response.success) {
+                      $('#addModal').fadeOut();
+                      location.reload();
+                    } else {
+                      $('#errorNewPhoneNumber').text(response.error).show();
+                      $('#newPhoneNumber').addClass('invalid');
+                    }
+                  }
+                });
+              }
+            }
+          });
+        });
+
+        $('.update-phone-btn').click(function () {
+          try {
+            var phoneId = $(this).data('id');
+            var number = $(this).data('number');
+            var accountNumber = $(this).data('account-number');
+            var tariffName = $(this).data('tariff-name');
+            var companyId = $(this).data('company-id');
+
+            $('#modalPhoneId').val(phoneId);
+            $('#modalPhoneNumber').val(number);
+            $('#modalPhoneAccountNumber').val(accountNumber);
+            $('#modalPhoneTariffDisplay').val(tariffName);
+            $('#modalPhoneTariff').val($(this).data('tariff'));
+
+            if (companyId) {
+              const company = window.companies.find(c => c.id == companyId);
+              $('#modalPhoneCompanyDisplay').val(company ? company.name : '');
+              $('#modalPhoneCompany').val(company ? company.id : '');
+            } else {
+              $('#modalPhoneCompanyDisplay').val('');
+              $('#modalPhoneCompany').val('');
+            }
+
+            $('#updatePhoneModal').fadeIn();
+            $('#modalUpdatePhoneForm .error-message').hide();
+            $('#modalUpdatePhoneForm .input-field').removeClass('invalid');
+          } catch (e) {
+            console.error('Error in update-phone-btn click handler:', e);
+          }
+        });
+        $('#modalCloseUpdate, #updatePhoneModal').click(function (e) {
+          if (e.target !== this) return;
+          $('#updatePhoneModal').fadeOut();
+        });
+
+        $('#modalUpdatePhoneForm').on('submit', function (e) {
+          e.preventDefault();
+          var form = $(this);
+          var accountNumber = $('#modalPhoneAccountNumber').val();
+          var tariffInput = $('#modalPhoneTariffDisplay');
+          var companyInput = $('#modalPhoneCompanyDisplay');
+
+          var isValid = true;
+          if (!validateAccountNumber(accountNumber)) {
+            $('#errorModalAccountNumber').text('Лицевой номер должен содержать ровно 12 цифр').show();
+            $('#modalPhoneAccountNumber').addClass('invalid');
+            isValid = false;
+          } else {
+            $('#errorModalAccountNumber').hide();
+            $('#modalPhoneAccountNumber').removeClass('invalid');
+          }
+          if (!validateCustomSelect(tariffInput, $('#errorModalTariff'), tariffNames)) {
+            isValid = false;
+          }
+          if (!validateCustomSelect(companyInput, $('#errorModalCompany'), companyNames)) {
+            isValid = false;
+          }
+
+          if (!isValid) return;
+
+          $.ajax({
+            url: '/numbers/',
+            type: 'POST',
+            data: form.serialize(),
+            success: function (response) {
+              if (response.success) {
+                $('#updatePhoneModal').fadeOut();
+                location.reload();
+              } else {
+                $('#errorModalPhoneNumber').text(response.error).show();
+                $('#modalPhoneNumber').addClass('invalid');
+              }
+            },
+            error: function (xhr) {
+              $('#errorModalPhoneNumber').text('Ошибка сервера. Пожалуйста, попробуйте снова.').show();
+            }
+          });
+        });
+
+        $('.delete-phone-btn').click(function () {
+          var phoneId = $(this).data('id');
+          var phoneNumber = $(this).data('number');
+          $('#deletePhoneId').val(phoneId);
+          $('#deleteConfirmText').html('Вы уверены, что хотите удалить номер <strong>' + phoneNumber + '</strong>?');
+          $('#deleteConfirmModal').fadeIn();
+        });
+        $('#modalCloseDelete, #cancelDelete, #deleteConfirmModal').click(function (e) {
+          if (e.target !== this && e.target.id !== 'cancelDelete') return;
+          $('#deleteConfirmModal').fadeOut();
+        });
+
+        $('#deletePhoneForm').on('submit', function (e) {
+          e.preventDefault();
+          $.ajax({
+            url: '/numbers/',
+            type: 'POST',
+            data: $(this).serialize(),
+            success: function (response) {
+              if (response.success) {
+                $('#deleteConfirmModal').fadeOut();
+                location.reload();
+              }
+            }
+          });
+        });
+
+        $('.issue-phone-btn').click(function () {
+          var phoneId = $(this).data('phone-id');
+          var phoneNumber = $(this).data('phone-number');
+          var companyId = $(this).data('company-id');
+          $('#phoneId').val(phoneId);
+          $('#companyId').val(companyId);
+          $('#modalPhoneNumber').text(phoneNumber);
+          $('#employeeSelectDisplay').val('');
+          $('#personnelNumber').text('');
+          $('#issuePhoneModal').fadeIn();
+          $('#issuePhoneForm .error-message').hide();
+          $('#issuePhoneForm .input-field').removeClass('invalid');
+        });
+        $('#modalCloseIssue, #issuePhoneModal').click(function (e) {
+          if (e.target !== this) return;
+          $('#issuePhoneModal').fadeOut();
+        });
+
+        $('#issuePhoneForm').on('submit', function (e) {
+          e.preventDefault();
+          var formData = new FormData(this);
+          
+          const companyId = $('#companyId').val();
+          let employeeItems = window.employees.map(emp => emp.name).sort((a, b) => a.localeCompare(b, 'ru'));
+          if (companyId) {
+            employeeItems = employeeItems.filter(name => {
+              const employee = window.employees.find(emp => emp.name === name);
+              return employee && employee.companyId === companyId;
+            });
+          }
+        
+          if (!validateCustomSelect($('#employeeSelectDisplay'), $('#errorEmployee'), employeeItems)) {
+            return;
+          }
+          $.ajax({
+            url: '/issue_phone/',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (data) {
+              if (data.success) {
+                $('#issuePhoneModal').fadeOut();
+                location.reload();
+              } else {
+                $('#errorEmployee').text(data.error).show();
+                $('#employeeSelectDisplay').addClass('invalid');
+              }
+            },
+            error: function (xhr) {
+              $('#errorEmployee').text('Ошибка сервера: ' + xhr.status + ' ' + xhr.statusText).show();
+              $('#employeeSelectDisplay').addClass('invalid');
+            }
+          });
+        });
+
+        $('.history-phone-btn').click(function () {
+          var phoneId = $(this).data('phone-id');
+          var phoneNumber = $(this).data('phone-number');
+
+          $('#historyPhoneNumber').text(phoneNumber);
+          $('#historyContent').empty().append('<p>Загрузка истории...</p>');
+          $('#historyPhoneModal').fadeIn();
+
+          $.ajax({
+            url: '/phone_history/' + phoneId + '/',
+            type: 'GET',
+            success: function (response) {
+              $('#historyContent').empty();
+              var history = response.history;
+
+              if (history && history.length > 0) {
+                var historyList = $('<ul></ul>');
+                history.forEach(function (entry) {
+                  if (entry.message) {
+                    historyList.append('<li>' + entry.message + '</li>');
+                  } else {
+                    var text = `${entry.employee_name}<br>С ${entry.start_date} по ${entry.end_date || 'настоящее время'}<br>Комментарий: ${entry.comment || 'нет'}`;
+                    historyList.append('<li>' + text + '</li>');
+                  }
+                });
+                $('#historyContent').append(historyList);
+              } else {
+                $('#historyContent').append('<p>История для этого номера отсутствует</p>');
+              }
+            },
+            error: function () {
+              $('#historyContent').empty().append('<p>Ошибка загрузки истории</p>');
+            }
+          });
+        });
+        $('#modalCloseHistory, #historyPhoneModal').click(function (e) {
+          if (e.target === this) {
+            $('#historyPhoneModal').fadeOut();
+          }
+        });
+
+        $('.return-phone-btn').click(function () {
+          var phoneId = $(this).data('phone-id');
+          var phoneNumber = $(this).data('phone-number');
+          $('#returnPhoneId').val(phoneId);
+          $('#returnModalPhoneNumber').text(phoneNumber);
+          $('#returnPhoneModal').fadeIn();
+        });
+        $('#modalCloseReturn, #returnPhoneModal').click(function (e) {
+          if (e.target !== this) return;
+          $('#returnPhoneModal').fadeOut();
+        });
+
+        $('#returnPhoneForm').on('submit', function (e) {
+          e.preventDefault();
+          var formData = new FormData(this);
+          $.ajax({
+            url: '/return_phone/',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (data) {
+              if (data.success) {
+                $('#returnPhoneModal').fadeOut();
+                location.reload();
+              } else {
+                $('#returnComment').after('<span class="error-message">' + data.error + '</span>');
+              }
+            }
+          });
+        });
+
+        $('.transfer-phone-btn').click(function () {
+          var phoneId = $(this).data('phone-id');
+          var phoneNumber = $(this).data('phone-number');
+          $('#transferPhoneId').val(phoneId);
+          $('#transferModalPhoneNumber').text(phoneNumber);
+          $('#transferPhoneModal').fadeIn();
+        });
+        $('#modalCloseTransfer, #cancelTransfer, #transferPhoneModal').click(function (e) {
+          if (e.target !== this && e.target.id !== 'cancelTransfer') return;
+          $('#transferPhoneModal').fadeOut();
+        });
+
+        $('#transferPhoneForm').on('submit', function (e) {
+          e.preventDefault();
+          var formData = new FormData(this);
+          $.ajax({
+            url: '/transfer/',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (data) {
+              if (data.success) {
+                $('#transferPhoneModal').fadeOut();
+                location.reload();
+              } else {
+                $('#transferPhoneForm p').after('<span class="error-message">' + data.error + '</span>');
+              }
+            }
+          });
+        });
+
+        // Обработка импорта CSV
+        $('#importForm').on('submit', function (e) {
+          e.preventDefault();
+          var formData = new FormData(this);
+          var fileInput = $('#csvFile');
+          
+          if (!fileInput.val()) {
+            $('#errorCsvFile').text('Пожалуйста, выберите файл').show();
+            fileInput.addClass('invalid');
+            return;
+          }
+
+          if (!fileInput.val().endsWith('.csv')) {
+            $('#errorCsvFile').text('Файл должен быть в формате CSV').show();
+            fileInput.addClass('invalid');
+            return;
+          }
+
+          $('#errorCsvFile').hide();
+          fileInput.removeClass('invalid');
+          $('#importResult').html('<p>Идет обработка файла...</p>');
+
+          $.ajax({
+            url: '/numbers/import/',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (response) {
+              if (response.success) {
+                $('#importResult').html('<p style="color: green;">Импорт успешно завершен. Добавлено записей: ' + response.added + '</p>');
+                setTimeout(function () {
+                  location.reload();
+                }, 2000);
+              } else {
+                var errorMessage = '<p style="color: red;">Ошибки при импорте:</p><ul>';
+                // Проверка, что errors существует и является массивом
+                if (Array.isArray(response.errors)) {
+                  response.errors.forEach(function (error) {
+                    errorMessage += '<li>' + error + '</li>';
+                  });
+                } else {
+                  // Если errors не массив или отсутствует, показываем общую ошибку
+                  errorMessage += '<li>Неизвестная ошибка импорта. Пожалуйста, проверьте формат файла или обратитесь к администратору.</li>';
+                }
+                errorMessage += '</ul>';
+                $('#importResult').html(errorMessage);
+              }
+            },
+            error: function (xhr) {
+              $('#importResult').html('<p style="color: red;">Ошибка сервера: ' + xhr.status + ' ' + xhr.statusText + '</p>');
+            }
+          });
+        });
+      });
+    </script>
+  </body>
+</html>

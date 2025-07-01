@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    {% load static %}
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Статистика расходов</title>
+    <link rel="stylesheet" href="{% static 'css/expenses.css' %}" />
+    <link rel="stylesheet" href="{% static 'css/header.css' %}" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <link rel="icon" type="image/x-icon" href="{% static 'images/KBK.ico' %}" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+    <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <script src="{% static 'js/base64.js' %}"></script>
+    <script>
+      window.companies = [
+        {% for company in companies %}
+          { id: "{{ company.id }}", name: "{{ company.name|escapejs }}" }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+      ];
+    </script>
+  </head>
+  <body style="overflow-x: hidden;">
+    {% include 'header.html' %}
+
+    <h1>Статистика расходов</h1>
+
+    <ul class="tab-menu">
+      <li class="active" data-tab="expenses-tab">Расходы</li>
+      <li data-tab="import-tab">Импорт расходов</li>
+      <li class="add-tab" id="download-pdf" disabled>Скачать PDF</li>
+      <li class="add-tab" id="download-csv" disabled>Скачать CSV</li>
+    </ul>
+
+    <div id="expenses-tab" class="tab-content active">
+      <form id="filter-form" class="filter-container">
+        <div class="custom-filter-container">
+          <label for="start_date">Период:</label>
+          <input type="month" name="start_date" id="start_date" class="custom-period" />
+        </div>
+        <div class="custom-filter-container">
+          <label for="companyFilter">Компания:</label>
+          <div class="custom-filter">
+            <input type="text" id="companyFilter" placeholder="Все компании" />
+            <ul class="custom-drop" data-filter="company"></ul>
+          </div>
+          <select class="input-field hidden-select" name="company" id="company">
+            <option value="">Все компании</option>
+            {% for company in companies %}
+              <option value="{{ company.id }}">{{ company.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="custom-filter-container">
+          <label for="accountFilter">Лицевой счет:</label>
+          <div class="custom-filter">
+            <input type="text" id="accountFilter" placeholder="Все" />
+            <ul class="custom-drop" data-filter="account"></ul>
+          </div>
+          <select class="input-field hidden-select" id="account">
+            <option value="">Все</option>
+          </select>
+        </div>
+        <div class="custom-filter-container">
+          <label for="employeeFilter">Сотрудник:</label>
+          <div class="custom-filter">
+            <input type="text" id="employeeFilter" placeholder="Все" />
+            <ul class="custom-drop" data-filter="employee"></ul>
+          </div>
+          <select class="input-field hidden-select" id="employee">
+            <option value="">Все</option>
+          </select>
+        </div>
+      </form>
+
+      <p class="total-expenses"><strong>Общая сумма расходов:</strong> <span id="total-expenses">0</span> руб.</p>
+
+      <div class="chart-container">
+        <div class="chart-item">
+          <canvas id="companyChart"></canvas>
+        </div>
+        <div class="chart-item">
+          <canvas id="employeeChart"></canvas>
+        </div>
+      </div>
+
+      <table id="expenses-table" border="1">
+        <thead>
+          <tr>
+            <th>ФИО</th>
+            <th>Компания</th>
+            <th>Таб. номер</th>
+            <th>Номер</th>
+            <th>Лицевой счет</th>
+            <th>Период</th>
+            <th>Сумма</th>
+            <th>Лимит</th>
+            <th>Перерасход</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div id="import-tab" class="tab-content">
+      <h2>Импорт расходов из CSV</h2>
+      <form id="import-form" enctype="multipart/form-data">
+        <div class="filter-container">
+          <div class="custom-filter-container">
+            <label for="usage_period">Период использования:</label>
+            <input type="month" name="usage_period" id="usage_period" class="custom-period" required />
+          </div>
+          <div>
+            <label for="csv_file">CSV файл:</label>
+            <input type="file" name="csv_file" id="csv_file" accept=".csv" required />
+          </div>
+        </div>
+        <button type="submit" class="submit-button">Импортировать</button>
+      </form>
+      <div id="import-result"></div>
+    </div>
+
+    <script>
+      const { jsPDF } = window.jspdf;
+
+      $(document).ready(function () {
+        let cachedAccounts = [];
+        let cachedEmployees = [];
+        let companyChart = null;
+        let employeeChart = null;
+
+        const options = {
+          language: {
+            url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/ru.json'
+          },
+          paging: true,
+          searching: true,
+          ordering: true,
+          info: true,
+          dom: 'lfrtip'
+        };
+
+        var expensesTable = $('#expenses-table').DataTable(options);
+
+        let startDateInput = document.getElementById("start_date");
+        if (startDateInput) {
+          let today = new Date();
+          let year = today.getFullYear();
+          let month = (today.getMonth() + 1).toString().padStart(2, '0');
+          startDateInput.value = `${year}-${month}`;
+          $('#download-pdf').prop('disabled', false);
+          $('#download-csv').prop('disabled', false);
+        }
+
+        let usagePeriodInput = document.getElementById("usage_period");
+        if (usagePeriodInput) {
+          let today = new Date();
+          let year = today.getFullYear();
+          let month = (today.getMonth() + 1).toString().padStart(2, '0');
+          usagePeriodInput.value = `${year}-${month}`;
+        }
+
+        const companyNames = window.companies.map(c => c.name).sort((a, b) => a.localeCompare(b, 'ru'));
+
+        function showCustomList(inputElement, dropElement, items, filterType, selectElement, maxItems = Infinity) {
+          const filterValue = inputElement.val().toLowerCase().trim();
+          let filteredItems = items;
+
+          filteredItems = filterValue
+            ? filteredItems.filter(item => item.toLowerCase().includes(filterValue))
+            : filteredItems;
+
+          filteredItems.sort((a, b) => a.localeCompare(b, 'ru'));
+          const displayItems = filteredItems.slice(0, maxItems);
+
+          dropElement.empty();
+          displayItems.forEach(item => {
+            const listItem = $('<li></li>').text(item).appendTo(dropElement);
+            listItem.click(() => {
+              inputElement.val(item);
+              dropElement.css('height', '0');
+              dropElement.empty();
+
+              if (selectElement) {
+                if (filterType === 'company') {
+                  const selectedCompany = window.companies.find(c => c.name === item);
+                  selectElement.val(selectedCompany ? selectedCompany.id : '');
+                } else if (filterType === 'account') {
+                  selectElement.val(item);
+                } else if (filterType === 'employee') {
+                  const selectedEmployee = cachedEmployees.find(emp => emp.name === item);
+                  selectElement.val(selectedEmployee ? selectedEmployee.id : '');
+                }
+              }
+              loadExpenses(filterType === 'company' || filterType === 'account');
+            });
+          });
+
+          dropElement.css('height', displayItems.length > 0 ? 'auto' : '0');
+        }
+
+        $('#expenses-tab .custom-filter input').each(function () {
+          const input = $(this);
+          const drop = input.siblings('.custom-drop');
+          const selectElement = input.parent().siblings('select');
+          const filterType = drop.data('filter');
+          let items;
+
+          input.on('click input', function () {
+            if (filterType === 'company') {
+              items = companyNames;
+            } else if (filterType === 'account') {
+              items = cachedAccounts;
+            } else if (filterType === 'employee') {
+              items = cachedEmployees.map(emp => emp.name).sort((a, b) => a.localeCompare(b, 'ru'));
+            }
+            showCustomList(input, drop, items, filterType, selectElement, Infinity);
+          });
+
+          input.on('input', function () {
+            if (!$(this).val()) {
+              selectElement.val('');
+              loadExpenses(filterType === 'company' || filterType === 'account');
+            }
+          });
+        });
+
+        $(document).click(function (e) {
+          $('.custom-filter input').each(function () {
+            const input = $(this);
+            const drop = input.siblings('.custom-drop');
+            if (!input.is(e.target) && !drop.is(e.target) && drop.has(e.target).length === 0) {
+              drop.css('height', '0');
+              drop.empty();
+            }
+          });
+        });
+
+        $('#start_date').on('change', function () {
+          const startDate = $(this).val();
+          $('#download-pdf').prop('disabled', !startDate);
+          $('#download-csv').prop('disabled', !startDate);
+          loadExpenses(true);
+        });
+
+        $('#account, #employee').on('change', function () {
+          loadExpenses(false);
+        });
+
+        loadExpenses(true);
+
+        $('.tab-menu li').click(function () {
+          if ($(this).attr('id') === 'download-pdf' || $(this).attr('id') === 'download-csv') return;
+
+          $('.tab-menu li').removeClass('active');
+          $(this).addClass('active');
+
+          $('.tab-content').removeClass('active');
+          $('#' + $(this).data('tab')).addClass('active');
+        });
+
+        $('#import-form').on('submit', function (e) {
+          e.preventDefault();
+          let formData = new FormData(this);
+
+          $.ajax({
+            url: '/expenses/import/',
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (response) {
+              $('#import-result').html(response.message);
+              if (response.success) {
+                $('#import-result').css('color', 'green');
+              } else {
+                $('#import-result').css('color', 'red');
+              }
+            },
+            error: function (xhr) {
+              $('#import-result').html('Произошла ошибка при импорте').css('color', 'red');
+            }
+          });
+        });
+
+        function formatDateToMonthYear(dateString) {
+          if (!dateString) return "Не выбран";
+
+          const months = [
+            "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+            "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
+          ];
+
+          const date = new Date(dateString);
+          const month = months[date.getMonth()];
+          const year = date.getFullYear();
+
+          return `${month} ${year}`;
+        }
+
+        $('#download-pdf').click(function () {
+          if ($(this).prop('disabled')) return;
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF();
+
+          doc.addFileToVFS('Journalsans.ttf', JournalsansFont);
+          doc.addFont('Journalsans.ttf', 'Journalsans', 'normal');
+          doc.setFont('Journalsans');
+
+          const company = $('#companyFilter').val() || 'Все компании';
+          const startDate = formatDateToMonthYear($('#start_date').val());
+          const account = $('#accountFilter').val() || 'Все';
+          const employee = $('#employeeFilter').val() || 'Все';
+          const totalExpenses = $('#total-expenses').text();
+
+          doc.setFontSize(16);
+          doc.text('Статистика расходов', 10, 10);
+          doc.setFontSize(12);
+          doc.text(`Компания: ${company}`, 10, 20);
+          doc.text(`Период: ${startDate}`, 10, 30);
+          doc.text(`Лицевой счет: ${account}`, 10, 40);
+          doc.text(`Сотрудник: ${employee}`, 10, 50);
+          doc.text(`Общая сумма расходов: ${totalExpenses} руб.`, 10, 60);
+
+          Promise.all([
+            html2canvas(document.getElementById('companyChart'), { scale: 2 }),
+            html2canvas(document.getElementById('employeeChart'), { scale: 2 })
+          ]).then(([companyCanvas, employeeCanvas]) => {
+            const companyImg = companyCanvas.toDataURL('image/png');
+            const employeeImg = employeeCanvas.toDataURL('image/png');
+
+            doc.addImage(companyImg, 'PNG', 10, 70, 90, 90);
+            doc.addImage(employeeImg, 'PNG', 110, 70, 90, 90);
+
+            doc.addPage();
+            doc.setFontSize(16);
+            doc.text('Таблица расходов', 10, 10);
+            doc.setFontSize(12);
+
+            const tableData = expensesTable.rows().data().toArray();
+            const tableBody = tableData.map(row => [
+              row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8]
+            ]);
+
+            doc.autoTable({
+              startY: 20,
+              head: [['ФИО', 'Компания', 'Таб. номер', 'Номер', 'Лицевой счет', 'Период', 'Сумма', 'Лимит', 'Перерасход']],
+              body: tableBody,
+              styles: { font: 'Journalsans', fontSize: 10 },
+              headStyles: { fillColor: [35, 136, 159] },
+              theme: 'grid'
+            });
+
+            doc.save('expenses_report.pdf');
+          }).catch(err => {
+            console.error('Ошибка при генерации PDF:', err);
+          });
+        });
+
+        $('#download-csv').click(function () {
+          if ($(this).prop('disabled')) return;
+
+          const tableData = expensesTable.rows().data().toArray();
+          const headers = ['ФИО', 'Компания', 'Таб. номер', 'Номер', 'Лицевой счет', 'Период', 'Сумма', 'Лимит', 'Перерасход'];
+
+          const escapeCsvValue = (value) => {
+            if (value === null || value === undefined) {
+              return '';
+            }
+            const stringValue = String(value);
+            if (stringValue.includes('"') || stringValue.includes(',') || stringValue.includes('\n') || stringValue.includes('\r')) {
+              return `"${stringValue.replace(/"/g, '""')}"`;
+            }
+            return stringValue;
+          };
+
+          let csvContent = headers.map(escapeCsvValue).join(',') + '\n';
+          tableData.forEach(row => {
+            const rowData = [
+              escapeCsvValue(row[0]),
+              escapeCsvValue(row[1]),
+              escapeCsvValue(row[2]),
+              escapeCsvValue(row[3]),
+              escapeCsvValue(row[4]),
+              escapeCsvValue(row[5]),
+              escapeCsvValue(row[6]),
+              escapeCsvValue(row[7]),
+              escapeCsvValue(row[8])
+            ].join(',');
+            csvContent += rowData + '\n';
+          });
+
+          const BOM = '\uFEFF';
+          const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          
+          const link = document.createElement('a');
+          link.setAttribute('href', url);
+          link.setAttribute('download', 'expenses_report.csv');
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        });
+
+        function loadExpenses(fullReload) {
+          let company = $('#company').val();
+          let start_date = $('#start_date').val();
+          let account = $('#account').val();
+          let employee = $('#employee').val();
+
+          $.ajax({
+            url: '/expenses/ajax/',
+            data: { company, start_date, account, employee },
+            success: function (data) {
+              $('#total-expenses').text(data.total_expenses);
+
+              if (fullReload) {
+                cachedAccounts = data.accounts;
+                cachedEmployees = data.employees;
+              }
+
+              let accountsHtml = '<option value="">Все</option>';
+              cachedAccounts.forEach(acc => {
+                accountsHtml += `<option value="${acc}" ${acc == account ? "selected" : ""}>${acc}</option>`;
+              });
+              $('#account').html(accountsHtml);
+              $('#accountFilter').val(account || '');
+
+              let employeesHtml = '<option value="">Все</option>';
+              cachedEmployees.forEach(emp => {
+                employeesHtml += `<option value="${emp.id}" ${emp.id == employee ? "selected" : ""}>${emp.name}</option>`;
+              });
+              $('#employee').html(employeesHtml);
+              $('#employeeFilter').val(cachedEmployees.find(emp => emp.id == employee)?.name || '');
+
+              const months = [
+                "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+                "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
+              ];
+
+              expensesTable.clear();
+              data.expenses.forEach(exp => {
+                let formattedDate = "Неизвестно";
+                if (exp.date) {
+                  let dateParts = exp.date.split('.');
+                  if (dateParts.length === 3) {
+                    let day = dateParts[0];
+                    let monthIndex = parseInt(dateParts[1]) - 1;
+                    let year = dateParts[2];
+                    if (monthIndex >= 0 && monthIndex < 12 && year) {
+                      formattedDate = `${months[monthIndex]} ${year}`;
+                    }
+                  }
+                }
+
+                const amount = parseFloat(exp.amount);
+                const limit = parseFloat(exp.limit);
+                let overage = "Отсутствует";
+                if (amount > limit) {
+                  overage = (amount - limit).toFixed(2) + " руб.";
+                }
+
+                expensesTable.row.add([
+                  exp.employee,
+                  exp.company,
+                  exp.personnel_number,
+                  exp.phone_number,
+                  exp.account,
+                  formattedDate,
+                  exp.amount,
+                  exp.limit,
+                  overage
+                ]);
+              });
+              expensesTable.draw();
+
+              updateCompanyChart(data.expenses, company);
+              updateEmployeeChart(data.expenses, employee);
+            }
+          });
+        }
+
+        function updateCompanyChart(expenses, company) {
+          let labels = [];
+          let values = [];
+
+          if (!company) {
+            let companyTotals = {};
+            expenses.forEach(exp => {
+              let companyName = exp.company || "Неизвестно";
+              companyTotals[companyName] = (companyTotals[companyName] || 0) + parseFloat(exp.amount);
+            });
+            labels = Object.keys(companyTotals);
+            values = Object.values(companyTotals);
+          } else {
+            let accountTotals = {};
+            expenses.forEach(exp => {
+              let accountNumber = exp.account || "Неизвестно";
+              accountTotals[accountNumber] = (accountTotals[accountNumber] || 0) + parseFloat(exp.amount);
+            });
+            labels = Object.keys(accountTotals);
+            values = Object.values(accountTotals);
+          }
+
+          let ctx = document.getElementById('companyChart').getContext('2d');
+          if (companyChart) companyChart.destroy();
+
+          companyChart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+              labels: labels,
+              datasets: [{
+                data: values,
+                backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4CAF50', '#9C27B0'],
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { position: 'top' },
+                title: { display: true, text: company ? 'Расходы по лицевым счетам' : 'Статистика по компаниям' }
+              }
+            }
+          });
+        }
+
+        function updateEmployeeChart(expenses, employee) {
+          let labels = [];
+          let values = [];
+
+          if (employee) {
+            let phoneTotals = {};
+            expenses.forEach(exp => {
+              let phoneNumber = exp.phone_number || "Неизвестно";
+              phoneTotals[phoneNumber] = (phoneTotals[phoneNumber] || 0) + parseFloat(exp.amount);
+            });
+            labels = Object.keys(phoneTotals);
+            values = Object.values(phoneTotals);
+          } else {
+            let employeeTotals = {};
+            expenses.forEach(exp => {
+              let employeeName = exp.employee || "Неизвестно";
+              employeeTotals[employeeName] = (employeeTotals[employeeName] || 0) + parseFloat(exp.amount);
+            });
+            labels = Object.keys(employeeTotals);
+            values = Object.values(employeeTotals);
+          }
+
+          let ctx = document.getElementById('employeeChart').getContext('2d');
+          if (employeeChart) employeeChart.destroy();
+
+          employeeChart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+              labels: labels,
+              datasets: [{
+                data: values,
+                backgroundColor: ['#FF9800', '#9E9E9E', '#4CAF50', '#FF6384', '#36A2EB'],
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { position: 'top' },
+                title: { display: true, text: employee ? 'Расходы по номерам сотрудника' : 'Статистика по сотрудникам' }
+              }
+            }
+          });
+        }
+      });
+    </script>
+  </body>
+</html>

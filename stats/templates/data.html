@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    {% load static %}
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Данные</title>
+
+    <link rel="stylesheet" href="{% static 'css/data.css' %}" />
+    <link rel="stylesheet" href="{% static 'css/header.css' %}" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <link rel="icon" type="image/x-icon" href="{% static 'images/KBK.ico' %}" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+
+    <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="{% static 'js/data.js' %}"></script>
+  </head>
+  <body>
+    {% include 'header.html' %}
+
+    <h1>Управление данными</h1>
+
+    <div class="container">
+      <ul class="tab-menu">
+        <li class="active" data-tab="companies-tab">Компании</li>
+        <li data-tab="departments-tab">Отделы</li>
+        <li data-tab="positions-tab">Должности</li>
+        <li data-tab="tariffs-tab">Тарифы</li>
+        <li data-tab="operators-tab">Операторы</li>
+        <li class="add-tab" id="openAddModal">Добавить</li>
+      </ul>
+
+      <div id="companies-tab" class="tab-content active">
+        <h2>Компании</h2>
+        <table id="company-table" border="1">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Название</th>
+              <th>ИНН</th>
+              <th>КПП</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for company in companies %}
+              <tr>
+                <td class="id-column"><div class="id-container">{{ company.id }}</div></td>
+                <td>{{ company.name }}</td>
+                <td>{{ company.inn }}</td>
+                <td>{{ company.kpp }}</td>
+                <td class="actions-column">
+                  <div class="button-container">
+                    <button type="button" class="update-company-btn" data-id="{{ company.id }}" data-name="{{ company.name }}" data-inn="{{ company.inn }}" data-kpp="{{ company.kpp }}">Изменить</button>
+                    <button type="button" class="delete-company-btn" data-id="{{ company.id }}" data-name="{{ company.name }}">Удалить</button>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div id="departments-tab" class="tab-content">
+        <h2>Отделы</h2>
+        <table id="department-table" border="1">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Название</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for department in departments %}
+              <tr>
+                <td class="id-column"><div class="id-container">{{ department.id }}</div></td>
+                <td>{{ department.name }}</td>
+                <td class="actions-column">
+                  <div class="button-container">
+                    <button type="button" class="update-department-btn" data-id="{{ department.id }}" data-name="{{ department.name }}">Изменить</button>
+                    <button type="button" class="delete-department-btn" data-id="{{ department.id }}" data-name="{{ department.name }}">Удалить</button>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div id="positions-tab" class="tab-content">
+        <h2>Должности</h2>
+        <table id="position-table" border="1">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Название</th>
+              <th>Лимит</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for position in positions %}
+              <tr>
+                <td class="id-column"><div class="id-container">{{ position.id }}</div></td>
+                <td>{{ position.name }}</td>
+                <td>{{ position.salary_limit }}</td>
+                <td class="actions-column">
+                  <div class="button-container">
+                    <button type="button" class="update-position-btn" data-id="{{ position.id }}" data-name="{{ position.name }}" data-salary="{{ position.salary_limit }}">Изменить</button>
+                    <button type="button" class="delete-position-btn" data-id="{{ position.id }}" data-name="{{ position.name }}">Удалить</button>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div id="tariffs-tab" class="tab-content">
+        <h2>Тарифы</h2>
+        <table id="tariff-table" border="1">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Название</th>
+              <th>Оператор</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for tariff in tariffs %}
+              <tr>
+                <td class="id-column"><div class="id-container">{{ tariff.id }}</div></td>
+                <td>{{ tariff.name }}</td>
+                <td>{{ tariff.operator.name|default:'—' }}</td>
+                <td class="actions-column">
+                  <div class="button-container">
+                    <button type="button" class="update-tariff-btn" 
+                            data-id="{{ tariff.id }}" 
+                            data-operator="{{ tariff.operator.id|default:'' }}"
+                            data-name="{{ tariff.name }}">Изменить</button>
+                    <button type="button" class="delete-tariff-btn" data-id="{{ tariff.id }}" data-name="{{ tariff.name }}">Удалить</button>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div id="operators-tab" class="tab-content">
+        <h2>Операторы</h2>
+        <table id="operator-table" border="1">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Название</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for operator in operators %}
+              <tr>
+                <td class="id-column"><div class="id-container">{{ operator.id }}</div></td>
+                <td>{{ operator.name }}</td>
+                <td class="actions-column">
+                  <div class="button-container">
+                    <button type="button" class="update-operator-btn" data-id="{{ operator.id }}" data-name="{{ operator.name }}">Изменить</button>
+                    <button type="button" class="delete-operator-btn" data-id="{{ operator.id }}" data-name="{{ operator.name }}">Удалить</button>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="updateCompanyModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalCloseCompany">×</span>
+        <h3 class="modal-header">Обновить Компанию</h3>
+        <form id="modalUpdateCompanyForm" method="POST">
+          {% csrf_token %}
+          <input type="hidden" name="update_company" id="modalCompanyId" value="" />
+          <input type="hidden" name="active_tab" value="companies-tab" />
+          <div class="form-group">
+            <label for="modalCompanyName">Название:</label>
+            <input class="input-field" type="text" name="company_name" id="modalCompanyName" required />
+            <span class="error-message" id="errorModalCompanyName"></span>
+          </div>
+          <div class="form-group">
+            <label for="modalCompanyInn">ИНН:</label>
+            <input class="input-field" type="text" name="company_inn" id="modalCompanyInn" pattern="\d{10}" title="ИНН должен содержать ровно 10 цифр" required />
+            <span class="error-message" id="errorModalCompanyInn"></span>
+          </div>
+          <div class="form-group">
+            <label for="modalCompanyKpp">КПП:</label>
+            <input class="input-field" type="text" name="company_kpp" id="modalCompanyKpp" pattern="\d{9}" title="КПП должен содержать ровно 9 цифр" required />
+            <span class="error-message" id="errorModalCompanyKpp"></span>
+          </div>
+          <button class="submit-button" type="submit">Изменить</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="updateDepartmentModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalCloseDepartment">×</span>
+        <h3 class="modal-header">Обновить Отдел</h3>
+        <form id="modalUpdateDepartmentForm" method="POST">
+          {% csrf_token %}
+          <input type="hidden" name="update_department" id="modalDepartmentId" value="" />
+          <input type="hidden" name="active_tab" value="departments-tab" />
+          <div class="form-group">
+            <label for="modalDepartmentName">Название:</label>
+            <input class="input-field" type="text" name="department_name" id="modalDepartmentName" required />
+            <span class="error-message" id="errorModalDepartmentName"></span>
+          </div>
+          <button class="submit-button" type="submit">Изменить</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="updatePositionModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalClosePosition">×</span>
+        <h3 class="modal-header">Обновить Должность</h3>
+        <form id="modalUpdatePositionForm" method="POST">
+          {% csrf_token %}
+          <input type="hidden" name="update_position" id="modalPositionId" value="" />
+          <input type="hidden" name="active_tab" value="positions-tab" />
+          <div class="form-group">
+            <label for="modalPositionName">Название:</label>
+            <input class="input-field" type="text" name="position_name" id="modalPositionName" required />
+            <span class="error-message" id="errorModalPositionName"></span>
+          </div>
+          <div class="form-group">
+            <label for="modalPositionSalary">Лимит Зарплаты:</label>
+            <input class="input-field" type="number" step="0.01" name="position_salary_limit" id="modalPositionSalary" required />
+            <span class="error-message" id="errorModalPositionSalary"></span>
+          </div>
+          <button class="submit-button" type="submit">Изменить</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="updateTariffModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalCloseTariff">×</span>
+        <h3 class="modal-header">Обновить Тариф</h3>
+        <form id="modalUpdateTariffForm" method="POST">
+          {% csrf_token %}
+          <input type="hidden" name="update_tariff" id="modalTariffId" value="" />
+          <input type="hidden" name="active_tab" value="tariffs-tab" />
+          <div class="form-group">
+            <label for="modalTariffName">Название:</label>
+            <input class="input-field" type="text" name="tariff_name" id="modalTariffName" required />
+            <span class="error-message" id="errorModalTariffName"></span>
+          </div>
+          <div class="form-group">
+            <label for="modalTariffOperator">Оператор:</label>
+            <select class="input-field" name="tariff_operator" id="modalTariffOperator" required>
+              <option value="">Выберите оператора</option>
+              {% for operator in operators %}
+                <option value="{{ operator.id }}">{{ operator.name }}</option>
+              {% endfor %}
+            </select>
+            <span class="error-message" id="errorModalTariffOperator"></span>
+          </div>
+          <button class="submit-button" type="submit">Изменить</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="updateOperatorModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalCloseOperator">×</span>
+        <h3 class="modal-header">Обновить Оператора</h3>
+        <form id="modalUpdateOperatorForm" method="POST">
+          {% csrf_token %}
+          <input type="hidden" name="update_operator" id="modalOperatorId" value="" />
+          <input type="hidden" name="active_tab" value="operators-tab" />
+          <div class="form-group">
+            <label for="modalOperatorName">Название:</label>
+            <input class="input-field" type="text" name="operator_name" id="modalOperatorName" required />
+            <span class="error-message" id="errorModalOperatorName"></span>
+          </div>
+          <button class="submit-button" type="submit">Изменить</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="addModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalCloseAdd">×</span>
+        <h3 class="modal-header">Добавить запись</h3>
+        <ul id="addChoiceList">
+          <li data-choice="company">Компания</li>
+          <li data-choice="department">Отдел</li>
+          <li data-choice="position">Должность</li>
+          <li data-choice="tariff">Тариф</li>
+          <li data-choice="operator">Оператор</li>
+        </ul>
+        <select id="addTypeSelect" class="add-type-select" style="display:none;">
+          <option value="">Выберите тип записи</option>
+          <option value="company">Компания</option>
+          <option value="department">Отдел</option>
+          <option value="position">Должность</option>
+          <option value="tariff">Тариф</option>
+          <option value="operator">Оператор</option>
+        </select>
+        <div id="addCompanyForm" class="add-form-section" style="display:none;">
+          <form id="addCompanyForm" method="POST">
+            {% csrf_token %}
+            <input type="hidden" name="active_tab" value="companies-tab" />
+            <div class="form-group">
+              <label for="new_company_name">Название:</label>
+              <input class="input-field" type="text" name="new_company_name" id="new_company_name" placeholder="Название" required />
+              <span class="error-message" id="errorNewCompanyName"></span>
+            </div>
+            <div class="form-group">
+              <label for="new_company_inn">ИНН:</label>
+              <input class="input-field" type="text" name="new_company_inn" id="new_company_inn" placeholder="ИНН" pattern="\d{10}" title="ИНН должен содержать ровно 10 цифр" required />
+              <span class="error-message" id="errorNewCompanyInn"></span>
+            </div>
+            <div class="form-group">
+              <label for="new_company_kpp">КПП:</label>
+              <input class="input-field" type="text" name="new_company_kpp" id="new_company_kpp" placeholder="КПП" pattern="\d{9}" title="КПП должен содержать ровно 9 цифр" required />
+              <span class="error-message" id="errorNewCompanyKpp"></span>
+            </div>
+            <button class="submit-button" type="submit" name="add_company">Добавить Компанию</button>
+          </form>
+        </div>
+        <div id="addDepartmentForm" class="add-form-section" style="display:none;">
+          <form id="addDepartmentForm" method="POST">
+            {% csrf_token %}
+            <input type="hidden" name="active_tab" value="departments-tab" />
+            <div class="form-group">
+              <label for="new_department_name">Название:</label>
+              <input class="input-field" type="text" name="new_department_name" id="new_department_name" placeholder="Название" required />
+              <span class="error-message" id="errorNewDepartmentName"></span>
+            </div>
+            <button class="submit-button" type="submit" name="add_department">Добавить Отдел</button>
+          </form>
+        </div>
+        <div id="addPositionForm" class="add-form-section" style="display:none;">
+          <form id="addPositionForm" method="POST">
+            {% csrf_token %}
+            <input type="hidden" name="active_tab" value="positions-tab" />
+            <div class="form-group">
+              <label for="new_position_name">Название:</label>
+              <input class="input-field" type="text" name="new_position_name" id="new_position_name" placeholder="Название" required />
+              <span class="error-message" id="errorNewPositionName"></span>
+            </div>
+            <div class="form-group">
+              <label for="new_position_salary_limit">Лимит Зарплаты:</label>
+              <input class="input-field" type="number" step="0.01" name="new_position_salary_limit" id="new_position_salary_limit" placeholder="Лимит Зарплаты" required />
+              <span class="error-message" id="errorNewPositionSalary"></span>
+            </div>
+            <button class="submit-button" type="submit" name="add_position">Добавить Должность</button>
+          </form>
+        </div>
+        <div id="addTariffForm" class="add-form-section" style="display:none;">
+          <form id="addTariffForm" method="POST">
+            {% csrf_token %}
+            <input type="hidden" name="active_tab" value="tariffs-tab" />
+            <div class="form-group">
+              <label for="new_tariff_name">Название:</label>
+              <input class="input-field" type="text" name="new_tariff_name" id="new_tariff_name" placeholder="Название" required />
+              <span class="error-message" id="errorNewTariffName"></span>
+            </div>
+            <div class="form-group">
+              <label for="new_tariff_operator">Оператор:</label>
+              <select class="input-field" name="new_tariff_operator" id="new_tariff_operator" required>
+                <option value="">Выберите оператора</option>
+                {% for operator in operators %}
+                  <option value="{{ operator.id }}">{{ operator.name }}</option>
+                {% endfor %}
+              </select 
+              <span class="error-message" id="errorNewTariffOperator"></span>
+            </div>
+            <button class="submit-button" type="submit" name="add_tariff">Добавить Тариф</button>
+          </form>
+        </div>
+        <div id="addOperatorForm" class="add-form-section" style="display:none;">
+          <form id="addOperatorForm" method="POST">
+            {% csrf_token %}
+            <input type="hidden" name="active_tab" value="operators-tab" />
+            <div class="form-group">
+              <label for="new_operator_name">Название:</label>
+              <input class="input-field" type="text" name="new_operator_name" id="new_operator_name" placeholder="Название" required />
+              <span class="error-message" id="errorNewOperatorName"></span>
+            </div>
+            <button class="submit-button" type="submit" name="add_operator">Добавить Оператора</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="deleteConfirmModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalCloseDelete">×</span>
+        <h3 class="modal-header">Подтверждение удаления</h3>
+        <p id="deleteConfirmText"></p>
+        <form id="deleteForm" method="POST">
+          {% csrf_token %}
+          <input type="hidden" name="active_tab" id="deleteActiveTab" value="" />
+          <input type="hidden" name="delete_id" id="deleteId" value="" />
+          <input type="hidden" name="delete_type" id="deleteType" value="" />
+          <div class="confirm-buttons">
+            <button type="submit" class="confirm-yes" id="confirmDeleteBtn">Да</button>
+            <button type="button" class="confirm-no" id="cancelDelete">Нет</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </body>
+</html>

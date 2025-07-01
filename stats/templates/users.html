@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    {% load static %}
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Управление пользователями и ролями</title>
+
+    <link rel="stylesheet" href="{% static 'css/users.css' %}" />
+    <link rel="stylesheet" href="{% static 'css/header.css' %}" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <link rel="icon" type="image/x-icon" href="{% static 'images/KBK.ico' %}" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+
+    <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  </head>
+  <body>
+    {% include 'header.html' %}
+
+    <h1>Управление Пользователями и Ролями</h1>
+
+    <div class="container">
+      <ul class="tab-menu">
+        <li class="active" data-tab="users-tab">Пользователи</li>
+        <li data-tab="roles-tab">Роли</li>
+        <li class="add-tab" id="openAddModal">Добавить</li>
+      </ul>
+
+      <div id="users-tab" class="tab-content active">
+        <h2>Пользователи</h2>
+        {% if error %}
+          <div class="server-error">{{ error }}</div>
+        {% endif %}
+
+        <div class="filter-container">
+          <div class="custom-filter-container">
+            <label for="filterRole">Роль:</label>
+            <div class="custom-filter">
+              <input type="text" id="filterRole" placeholder="Все роли" />
+              <ul class="custom-drop" data-filter="role"></ul>
+            </div>
+          </div>
+        </div>
+
+        <table id="user-table" border="1">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Логин</th>
+              <th>Роль</th>
+              <th>ФИО</th>
+              <th>Таб. номер</th>
+              <th>Компания</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for user in users %}
+              <tr>
+                <td>{{ user.id }}</td>
+                <td>{{ user.login_hash }}</td>
+                <td>{{ user.role.name }}</td>
+                <td>
+                  {% if user.role.name == 'Администратор' or not user.employee or not user.employee.status %}
+                    -
+                  {% else %}
+                    {{ user.employee.last_name }} {{ user.employee.first_name }} {{ user.employee.middle_name|default:'' }}
+                  {% endif %}
+                </td>
+                <td>
+                  {% if user.role.name == 'Администратор' or not user.employee or not user.employee.status %}
+                    -
+                  {% else %}
+                    {{ user.employee.personnel_number }}
+                  {% endif %}
+                </td>
+                <td>
+                  {% if user.role.name == 'Администратор' or not user.employee or not user.employee.status %}
+                    -
+                  {% else %}
+                    {{ user.employee.company.name }}
+                  {% endif %}
+                </td>
+                <td class="actions-column">
+                  <div class="button-container">
+                    <button type="button"
+                      class="update-user-btn"
+                      data-id="{{ user.id }}"
+                      data-login-hash="{{ user.login_hash }}"
+                      data-role="{{ user.role.id }}"
+                      data-role-name="{{ user.role.name }}"
+                      data-employee-id="{% if user.employee and user.employee.status %}{{ user.employee.id }}{% endif %}"
+                      data-employee-name="{% if user.employee and user.employee.status %}
+                        {{ user.employee.last_name }} {{ user.employee.first_name }} {{ user.employee.middle_name|default:'' }} ({{ user.employee.personnel_number }})
+                      {% endif %}">
+                      Изменить
+                    </button>
+                    <button type="button" class="delete-user-btn" data-id="{{ user.id }}" data-login-hash="{{ user.login_hash }}">Удалить</button>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div id="roles-tab" class="tab-content">
+        <h2>Роли</h2>
+        <table id="role-table" border="1">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Название</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for role in roles %}
+              <tr>
+                <td>{{ role.id }}</td>
+                <td>{{ role.name }}</td>
+                <td class="actions-column">
+                  <div class="button-container">
+                    <button type="button" class="update-role-btn" data-id="{{ role.id }}" data-name="{{ role.name }}">Изменить</button>
+                    <button type="button" class="delete-role-btn" data-id="{{ role.id }}" data-name="{{ role.name }}">Удалить</button>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="addUserModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalCloseAddUser">×</span>
+        <h3 class="modal-header">Добавить Пользователя</h3>
+        <form id="addUserForm" method="POST" action="{% url 'users' %}">
+          {% csrf_token %}
+          <div class="form-row">
+            <div class="form-group half-width">
+              <label for="newUserLogin">Логин:</label>
+              <input class="input-field" type="text" name="new_user_login" id="newUserLogin" placeholder="Логин" required />
+              <span class="error-message" id="errorNewLogin">Логин должен содержать только латинские буквы, цифры и символы (@, _, -)</span>
+            </div>
+            <div class="form-group half-width">
+              <label for="newUserPassword">Пароль:</label>
+              <input class="input-field" type="password" name="new_user_password" id="newUserPassword" placeholder="Пароль" required />
+              <span class="error-message" id="errorNewPassword">Пароль должен содержать только латинские буквы, цифры и символы (@, _, -)</span>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group half-width">
+              <label for="newUserRoleDisplay">Роль:</label>
+              <div class="custom-filter-container">
+                <div class="custom-filter">
+                  <input type="text" id="newUserRoleDisplay" placeholder="Выберите роль" />
+                  <ul class="custom-drop" data-filter="newRole"></ul>
+                </div>
+                <select class="input-field hidden-select" name="new_user_role" id="newUserRole" required>
+                  {% for role in roles %}
+                    <option value="{{ role.id }}">{{ role.name }}</option>
+                  {% endfor %}
+                </select>
+                <span class="error-message" id="errorNewRole">Пожалуйста, выберите роль</span>
+              </div>
+            </div>
+            <div class="form-group half-width">
+              <label for="newUserEmployeeDisplay">Сотрудник:</label>
+              <div class="custom-filter-container">
+                <div class="custom-filter">
+                  <input type="text" id="newUserEmployeeDisplay" placeholder="Выберите сотрудника" />
+                  <ul class="custom-drop" data-filter="newEmployee"></ul>
+                </div>
+                <select class="input-field hidden-select" name="new_user_employee" id="newUserEmployee">
+                  <option value="">Не выбрано</option>
+                  {% for employee in employees %}
+                    <option value="{{ employee.id }}">{{ employee.last_name }} {{ employee.first_name }} {{ employee.middle_name|default:'' }} ({{ employee.personnel_number }})</option>
+                  {% endfor %}
+                </select>
+                <span class="error-message" id="errorNewEmployee">Пожалуйста, выберите сотрудника (обязательно для роли Пользователь)</span>
+              </div>
+            </div>
+          </div>
+          <span class="error-message" id="errorDuplicateUser" style="display: none;">Пользователь с таким логином уже существует</span>
+          <button class="submit-button" type="submit" name="add_user">Добавить Пользователя</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="updateUserModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalCloseUser">×</span>
+        <h3 class="modal-header">Обновить Пользователя</h3>
+        <form id="modalUpdateUserForm" method="POST" action="{% url 'users' %}">
+          {% csrf_token %}
+          <input type="hidden" name="update_user" id="modalUserId" value="" />
+          <div class="form-row">
+            <div class="form-group half-width">
+              <label for="modalUserLogin">Логин:</label>
+              <input class="input-field" type="text" name="user_login" id="modalUserLogin" />
+              <span class="error-message" id="errorLogin">Логин должен содержать только латинские буквы, цифры и символы (@, _, -), и не быть пустым</span>
+            </div>
+            <div class="form-group half-width">
+              <label for="modalUserPassword">Пароль (оставьте пустым, если не хотите менять):</label>
+              <input class="input-field" type="password" name="user_password" id="modalUserPassword" />
+              <span class="error-message" id="errorPassword">Пароль должен содержать только латинские буквы, цифры и символы (@, _, -), или быть пустым</span>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group half-width">
+              <label for="modalUserRoleDisplay">Роль:</label>
+              <div class="custom-filter-container">
+                <div class="custom-filter">
+                  <input type="text" id="modalUserRoleDisplay" placeholder="Выберите роль" />
+                  <ul class="custom-drop" data-filter="modalRole"></ul>
+                </div>
+                <select class="input-field hidden-select" name="user_role" id="modalUserRole" required>
+                  {% for role in roles %}
+                    <option value="{{ role.id }}">{{ role.name }}</option>
+                  {% endfor %}
+                </select>
+                <span class="error-message" id="errorRole">Пожалуйста, выберите роль</span>
+              </div>
+            </div>
+            <div class="form-group half-width">
+              <label for="modalUserEmployeeDisplay">Сотрудник:</label>
+              <div class="custom-filter-container">
+                <div class="custom-filter">
+                  <input type="text" id="modalUserEmployeeDisplay" placeholder="Выберите сотрудника" />
+                  <ul class="custom-drop" data-filter="modalEmployee"></ul>
+                </div>
+                <select class="input-field hidden-select" name="user_employee" id="modalUserEmployee">
+                  <option value="">Не выбрано</option>
+                  {% for employee in employees %}
+                    <option value="{{ employee.id }}">{{ employee.last_name }} {{ employee.first_name }} {{ employee.middle_name|default:'' }} ({{ employee.personnel_number }})</option>
+                  {% endfor %}
+                </select>
+                <span class="error-message" id="errorEmployee">Пожалуйста, выберите сотрудника (обязательно для роли Пользователь)</span>
+              </div>
+            </div>
+          </div>
+          <span class="error-message" id="errorUpdate" style="display: none;">Ошибка при обновлении</span>
+          <button class="submit-button" type="submit">Изменить</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="addRoleModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalCloseAddRole">×</span>
+        <h3 class="modal-header">Добавить Роль</h3>
+        <form id="addRoleForm" method="POST" action="{% url 'users' %}">
+          {% csrf_token %}
+          <div class="form-row">
+            <div class="form-group half-width">
+              <label for="newRoleName">Название:</label>
+              <input class="input-field" type="text" name="new_role_name" id="newRoleName" placeholder="Название роли" required />
+              <span class="error-message" id="errorNewRoleName">Название должно содержать только буквы, цифры и пробелы</span>
+            </div>
+          </div>
+          <span class="error-message" id="errorDuplicateRole" style="display: none;">Роль с таким названием уже существует</span>
+          <button class="submit-button" type="submit" name="add_role">Добавить Роль</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="updateRoleModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalCloseUpdateRole">×</span>
+        <h3 class="modal-header">Обновить Роль</h3>
+        <form id="modalUpdateRoleForm" method="POST" action="{% url 'users' %}">
+          {% csrf_token %}
+          <input type="hidden" name="update_role" id="modalRoleId" value="" />
+          <div class="form-row">
+            <div class="form-group half-width">
+              <label for="modalRoleName">Название:</label>
+              <input class="input-field" type="text" name="role_name" id="modalRoleName" />
+              <span class="error-message" id="errorRoleName">Название должно содержать только буквы, цифры и пробелы</span>
+            </div>
+          </div>
+          <span class="error-message" id="errorUpdateRole" style="display: none;">Ошибка при обновлении</span>
+          <button class="submit-button" type="submit">Изменить</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="deleteUserModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalCloseDeleteUser">×</span>
+        <h3 class="modal-header">Подтверждение удаления</h3>
+        <p id="deleteUserConfirmText"></p>
+        <form id="deleteUserForm" method="POST" action="{% url 'users' %}">
+          {% csrf_token %}
+          <input type="hidden" name="delete_user" id="deleteUserId" value="" />
+          <div class="confirm-buttons">
+            <button type="submit" class="confirm-yes">Да</button>
+            <button type="button" class="confirm-no" id="cancelDeleteUser">Нет</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="deleteRoleModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalCloseDeleteRole">×</span>
+        <h3 class="modal-header">Подтверждение удаления</h3>
+        <p id="deleteRoleConfirmText"></p>
+        <form id="deleteRoleForm" method="POST" action="{% url 'users' %}">
+          {% csrf_token %}
+          <input type="hidden" name="delete_role" id="deleteRoleId" value="" />
+          <div class="confirm-buttons">
+            <button type="submit" class="confirm-yes">Да</button>
+            <button type="button" class="confirm-no" id="cancelDeleteRole">Нет</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="addChoiceModal">
+      <div class="modal-content">
+        <span class="modal-close" id="modalCloseAddChoice">×</span>
+        <h3 class="modal-header">Выберите, что добавить</h3>
+        <ul id="addChoiceList">
+          <li data-type="user">Пользователь</li>
+          <li data-type="role">Роль</li>
+        </ul>
+      </div>
+    </div>
+
+    <script>
+      $(document).ready(function () {
+        const userTableOptions = {
+          language: { url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/ru.json' },
+          paging: true,
+          searching: true,
+          ordering: true,
+          info: true,
+          dom: 'lfrtip'
+        };
+        const roleTableOptions = {
+          language: { url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/ru.json' },
+          paging: true,
+          searching: true,
+          ordering: true,
+          info: true,
+          dom: 'lfrtip'
+        };
+        var userTable = $('#user-table').DataTable(userTableOptions);
+        var roleTable = $('#role-table').DataTable(roleTableOptions);
+
+        const roles = [
+          '',
+          {% for role in roles %}
+            '{{ role.name }}',
+          {% endfor %}
+        ];
+
+        const employees = [
+          '',
+          {% for employee in employees %}
+            '{{ employee.last_name }} {{ employee.first_name }} {{ employee.middle_name|default:"" }} ({{ employee.personnel_number }})',
+          {% endfor %}
+        ];
+
+        const roleMap = {
+          {% for role in roles %}
+            '{{ role.name }}': '{{ role.id }}',
+          {% endfor %}
+        };
+
+        const employeeMap = {
+          {% for employee in employees %}
+            '{{ employee.last_name }} {{ employee.first_name }} {{ employee.middle_name|default:"" }} ({{ employee.personnel_number }})': '{{ employee.id }}',
+          {% endfor %}
+        };
+
+        if ($('#user-table tbody tr').length === 0) {
+          console.log('Таблица пользователей пуста: данные не загружены или отсутствуют.');
+        } else {
+          console.log('Данные в таблице пользователей присутствуют, строк: ' + $('#user-table tbody tr').length);
+        }
+        if ($('#role-table tbody tr').length === 0) {
+          console.log('Таблица ролей пуста: данные не загружены или отсутствуют.');
+        } else {
+          console.log('Данные в таблице ролей присутствуют, строк: ' + $('#role-table tbody tr').length);
+        }
+
+        if (roles.length <= 1) {
+          alert('Необходимо создать хотя бы одну роль перед добавлением пользователя.');
+          $('#openAddModal').prop('disabled', true);
+        }
+
+        function showCustomList(inputElement, dropElement, items, filterType, selectElement) {
+          const filterValue = inputElement.val().toLowerCase();
+          const filteredItems = filterValue
+            ? items.filter(item => item.toLowerCase().includes(filterValue) && item !== '').sort()
+            : items.filter(item => item !== '').sort();
+
+          dropElement.empty();
+          filteredItems.forEach(item => {
+            const listItem = $('<li></li>').text(item).appendTo(dropElement);
+            listItem.click(() => {
+              inputElement.val(item);
+              dropElement.css('height', '0');
+              dropElement.empty();
+              if (selectElement) {
+                if (filterType.includes('Role')) {
+                  selectElement.val(roleMap[item] || '');
+                  const roleName = item;
+                  const employeeInput = filterType.includes('newRole') ? $('#newUserEmployeeDisplay') : $('#modalUserEmployeeDisplay');
+                  const employeeError = filterType.includes('newRole') ? $('#errorNewEmployee') : $('#errorEmployee');
+                  if (roleName === 'Администратор') {
+                    employeeInput.removeClass('invalid');
+                    employeeError.hide();
+                  }
+                } else if (filterType.includes('Employee')) {
+                  selectElement.val(employeeMap[item] || '');
+                }
+              } else {
+                applyUserFilters();
+              }
+            });
+          });
+
+          dropElement.css('height', filteredItems.length > 0 ? 'auto' : '0');
+        }
+
+        function applyUserFilters() {
+          const roleFilter = $('#filterRole').val().trim();
+          console.log('Фильтры пользователей:', { role: roleFilter });
+          userTable.columns(2).search(roleFilter.toLowerCase() === 'все роли' || roleFilter === '' ? '' : roleFilter);
+          userTable.draw();
+        }
+
+        applyUserFilters();
+
+        $('.filter-container .custom-filter input').each(function () {
+          const input = $(this);
+          const drop = input.siblings('.custom-drop');
+          const filterType = drop.data('filter');
+          const items = filterType === 'role' ? roles : [];
+
+          input.click(function () {
+            const currentValue = input.val().toLowerCase().trim();
+            if (currentValue === input.attr('placeholder').toLowerCase()) {
+              input.val('');
+            }
+            showCustomList(input, drop, items, filterType);
+          });
+
+          input.on('input', function () {
+            const userInput = input.val().toLowerCase();
+            showCustomList(input, drop, items, filterType);
+          });
+
+          input.on('change', function () {
+            applyUserFilters();
+          });
+        });
+
+        $('.modal-content .custom-filter input').each(function () {
+          const input = $(this);
+          const drop = input.siblings('.custom-drop');
+          const selectElement = input.parent().siblings('select');
+          const filterType = drop.data('filter');
+          const items = filterType.includes('Role') ? roles.slice(1) : filterType.includes('Employee') ? employees.slice(1) : [];
+
+          input.click(function () {
+            const currentValue = input.val().toLowerCase().trim();
+            if (currentValue === input.attr('placeholder').toLowerCase()) {
+              input.val('');
+            }
+            showCustomList(input, drop, items, filterType, selectElement);
+          });
+
+          input.on('input', function () {
+            const userInput = input.val().toLowerCase();
+            showCustomList(input, drop, items, filterType, selectElement);
+          });
+        });
+
+        $(document).click(function (e) {
+          $('.custom-filter input').each(function () {
+            const input = $(this);
+            const drop = input.siblings('.custom-drop');
+            if (!input.is(e.target) && !drop.is(e.target) && drop.has(e.target).length === 0) {
+              drop.css('height', '0');
+              drop.empty();
+            }
+          });
+        });
+
+        function validateTextField(field, regex, errorElement, allowEmpty = false) {
+          const value = field.val().trim();
+          const isValid = (allowEmpty && value === '') || (regex.test(value) && value.length > 0);
+          if (!isValid) {
+            field.addClass('invalid');
+            errorElement.show();
+          } else {
+            field.removeClass('invalid');
+            errorElement.hide();
+          }
+          return isValid;
+        }
+
+        function validateCustomSelect(inputField, errorElement, allowEmpty = false) {
+          const value = inputField.val().trim();
+          const placeholder = inputField.attr('placeholder').toLowerCase();
+          const isValid = (allowEmpty && value === '') || (value !== '' && value.toLowerCase() !== placeholder);
+          if (!isValid) {
+            inputField.addClass('invalid');
+            errorElement.show();
+          } else {
+            inputField.removeClass('invalid');
+            errorElement.hide();
+          }
+          return isValid;
+        }
+
+        function validateUserForm(formId) {
+          const form = $(formId);
+          const isUpdateForm = formId === '#modalUpdateUserForm';
+          const fields = {
+            login: form.find('[name$="login"]'),
+            password: form.find('[name$="password"]'),
+            roleDisplay: form.find(isUpdateForm ? '#modalUserRoleDisplay' : '#newUserRoleDisplay'),
+            employeeDisplay: form.find(isUpdateForm ? '#modalUserEmployeeDisplay' : '#newUserEmployeeDisplay')
+          };
+          const errors = {
+            login: form.find('#error' + (isUpdateForm ? '' : 'New') + 'Login'),
+            password: form.find('#error' + (isUpdateForm ? '' : 'New') + 'Password'),
+            role: form.find('#error' + (isUpdateForm ? '' : 'New') + 'Role'),
+            employee: form.find('#error' + (isUpdateForm ? '' : 'New') + 'Employee')
+          };
+
+          const isLoginValid = validateTextField(fields.login, /^[a-zA-Z0-9@_-]+$/, errors.login);
+          const isPasswordValid = validateTextField(fields.password, /^[a-zA-Z0-9@_-]*$/, errors.password, isUpdateForm);
+          const isRoleValid = validateCustomSelect(fields.roleDisplay, errors.role);
+
+          const roleName = fields.roleDisplay.val().trim();
+          const isEmployeeRequired = roleName !== 'Администратор';
+          const isEmployeeValid = validateCustomSelect(fields.employeeDisplay, errors.employee, !isEmployeeRequired);
+
+          return isLoginValid && isPasswordValid && isRoleValid && (isEmployeeRequired ? isEmployeeValid : true);
+        }
+
+        function validateRoleForm(formId) {
+          const form = $(formId);
+          const isUpdateForm = formId === '#modalUpdateRoleForm';
+          const fields = {
+            name: form.find('[name$="name"]')
+          };
+          const errors = {
+            name: form.find('#error' + (isUpdateForm ? 'Role' : 'NewRole') + 'Name')
+          };
+
+          const isNameValid = validateTextField(fields.name, /^[a-zA-Zа-яА-Я0-9\s]+$/, errors.name);
+
+          return isNameValid;
+        }
+
+        function refreshUserTable() {
+          $.ajax({
+            url: '{% url "users" %}',
+            type: 'GET',
+            success: function (response) {
+              const newTable = $(response).find('#user-table').html();
+              $('#user-table').html(newTable);
+              userTable.destroy();
+              userTable = $('#user-table').DataTable(userTableOptions);
+              bindUserTableEvents();
+            },
+            error: function (xhr, status, error) {
+              console.error('Ошибка при обновлении таблицы пользователей: ' + error);
+            }
+          });
+        }
+
+        function bindUserTableEvents() {
+          $('.update-user-btn').off('click').click(function () {
+            var userId = $(this).data('id');
+            var loginHash = $(this).data('login-hash');
+            var role = $(this).data('role');
+            var roleName = $(this).data('role-name');
+            var employeeId = $(this).data('employee-id');
+            var employeeName = $(this).data('employee-name');
+
+            $('#modalUserId').val(userId);
+            $('#modalUserLogin').val(loginHash);
+            $('#modalUserPassword').val('');
+            $('#modalUserRole').val(role);
+            $('#modalUserRoleDisplay').val(roleName);
+            $('#modalUserEmployee').val(employeeId || '');
+            $('#modalUserEmployeeDisplay').val(employeeName || '');
+            $('#updateUserModal').fadeIn();
+            $('#modalUpdateUserForm .input-field').removeClass('invalid');
+            $('#modalUpdateUserForm .custom-filter input').removeClass('invalid');
+            $('#modalUpdateUserForm .error-message').hide();
+            $('#errorUpdate').hide();
+          });
+
+          $('.delete-user-btn').off('click').click(function () {
+            var userId = $(this).data('id');
+            var loginHash = $(this).data('login-hash');
+            $('#deleteUserId').val(userId);
+            $('#deleteUserConfirmText').html('Вы уверены, что хотите удалить пользователя с логином <strong>' + loginHash + '</strong>?');
+            $('#deleteUserModal').fadeIn();
+          });
+        }
+
+        bindUserTableEvents();
+
+        $('#addUserForm').on('submit', function (e) {
+          e.preventDefault();
+          $('#errorDuplicateUser').hide();
+
+          if (!validateUserForm('#addUserForm')) {
+            return;
+          }
+
+          const form = $(this);
+          const formData = form.serialize();
+
+          $.ajax({
+            url: '{% url "users" %}',
+            type: 'POST',
+            data: formData + '&check_unique=true',
+            headers: {
+              'X-CSRFToken': $('input[name="csrfmiddlewaretoken"]').val()
+            },
+            success: function (response) {
+              if (response.exists) {
+                $('#errorDuplicateUser').text('Пользователь с таким логином уже существует').show();
+              } else {
+                const addUserData = formData + '&add_user=true';
+                $.ajax({
+                  url: '{% url "users" %}',
+                  type: 'POST',
+                  data: addUserData,
+                  headers: {
+                    'X-CSRFToken': $('input[name="csrfmiddlewaretoken"]').val()
+                  },
+                  success: function (response) {
+                    if (response.success) {
+                      $('#addUserModal').fadeOut();
+                      refreshUserTable();
+                    } else if (response.error) {
+                      $('#errorDuplicateUser').text(response.error).show();
+                    }
+                  },
+                  error: function (xhr, status, error) {
+                    $('#errorDuplicateUser')
+                      .text('Ошибка при добавлении пользователя: ' + error)
+                      .show();
+                  }
+                });
+              }
+            },
+            error: function () {
+              $('#errorDuplicateUser').text('Ошибка проверки уникальности').show();
+            }
+          });
+        });
+
+        $('#modalUpdateUserForm').on('submit', function (e) {
+          e.preventDefault();
+          $('#errorUpdate').hide();
+
+          if (!validateUserForm('#modalUpdateUserForm')) {
+            return;
+          }
+
+          const form = $(this);
+          const formData = form.serialize();
+
+          $.ajax({
+            url: '{% url "users" %}',
+            type: 'POST',
+            data: formData,
+            headers: {
+              'X-CSRFToken': $('input[name="csrfmiddlewaretoken"]').val()
+            },
+            success: function (response) {
+              if (response.success) {
+                $('#updateUserModal').fadeOut();
+                refreshUserTable();
+              } else if (response.error) {
+                $('#errorUpdate').text(response.error).show();
+              }
+            },
+            error: function (xhr, status, error) {
+              $('#errorUpdate').text('Ошибка при обновлении пользователя').show();
+            }
+          });
+        });
+
+        $('#addRoleForm').on('submit', function (e) {
+          e.preventDefault();
+          $('#errorDuplicateRole').hide();
+
+          if (!validateRoleForm('#addRoleForm')) {
+            return;
+          }
+
+          const form = $(this);
+          const formData = form.serialize();
+
+          $.ajax({
+            url: '{% url "users" %}',
+            type: 'POST',
+            data: formData + '&check_unique_role=true',
+            headers: {
+              'X-CSRFToken': $('input[name="csrfmiddlewaretoken"]').val()
+            },
+            success: function (response) {
+              if (response.exists) {
+                $('#errorDuplicateRole').text('Роль с таким названием уже существует').show();
+              } else {
+                const addRoleData = formData + '&add_role=true';
+                $.ajax({
+                  url: '{% url "users" %}',
+                  type: 'POST',
+                  data: addRoleData,
+                  headers: {
+                    'X-CSRFToken': $('input[name="csrfmiddlewaretoken"]').val()
+                  },
+                  success: function (response) {
+                    if (response.success) {
+                      window.location.href = '{% url "users" %}';
+                    } else if (response.error) {
+                      $('#errorDuplicateRole').text(response.error).show();
+                    }
+                  },
+                  error: function (xhr, status, error) {
+                    $('#errorDuplicateRole')
+                      .text('Ошибка при добавлении роли: ' + error)
+                      .show();
+                  }
+                });
+              }
+            },
+            error: function () {
+              $('#errorDuplicateRole').text('Ошибка проверки уникальности').show();
+            }
+          });
+        });
+
+        $('#modalUpdateRoleForm').on('submit', function (e) {
+          e.preventDefault();
+          $('#errorUpdateRole').hide();
+
+          if (!validateRoleForm('#modalUpdateRoleForm')) {
+            return;
+          }
+
+          const form = $(this);
+          const formData = form.serialize();
+
+          $.ajax({
+            url: '{% url "users" %}',
+            type: 'POST',
+            data: formData,
+            headers: {
+              'X-CSRFToken': $('input[name="csrfmiddlewaretoken"]').val()
+            },
+            success: function (response) {
+              if (response.success) {
+                window.location.href = '{% url "users" %}';
+              } else if (response.error) {
+                $('#errorUpdateRole').text(response.error).show();
+              }
+            },
+            error: function (xhr, status, error) {
+              $('#errorUpdateRole').text('Ошибка при обновлении роли').show();
+            }
+          });
+        });
+
+        $('#deleteUserForm').on('submit', function (e) {
+          e.preventDefault();
+
+          const form = $(this);
+          const formData = form.serialize();
+
+          $.ajax({
+            url: '{% url "users" %}',
+            type: 'POST',
+            data: formData,
+            headers: {
+              'X-CSRFToken': $('input[name="csrfmiddlewaretoken"]').val()
+            },
+            success: function (response) {
+              if (response.success) {
+                $('#deleteUserModal').fadeOut();
+                refreshUserTable();
+              } else if (response.error) {
+                $('#deleteUserConfirmText').html('Ошибка при удалении: ' + response.error);
+              }
+            },
+            error: function (xhr, status, error) {
+              $('#deleteUserConfirmText').html('Ошибка при удалении пользователя: ' + error);
+            }
+          });
+        });
+
+        $('#deleteRoleForm').on('submit', function (e) {
+          e.preventDefault();
+
+          const form = $(this);
+          const formData = form.serialize();
+
+          $.ajax({
+            url: '{% url "users" %}',
+            type: 'POST',
+            data: formData,
+            headers: {
+              'X-CSRFToken': $('input[name="csrfmiddlewaretoken"]').val()
+            },
+            success: function (response) {
+              if (response.success) {
+                window.location.href = '{% url "users" %}';
+              } else if (response.error) {
+                $('#deleteRoleConfirmText').html('Ошибка при удалении: ' + response.error);
+              }
+            },
+            error: function (xhr, status, error) {
+              $('#deleteRoleConfirmText').html('Ошибка при удалении роли: ' + error);
+            }
+          });
+        });
+
+        $('.tab-menu li')
+          .not('.add-tab')
+          .click(function () {
+            var tabId = $(this).data('tab');
+            $('.tab-menu li').removeClass('active');
+            $(this).addClass('active');
+            $('.tab-content').removeClass('active').hide();
+            $('#' + tabId)
+              .addClass('active')
+              .show();
+          });
+
+        $('#openAddModal').click(function () {
+          $('#addChoiceModal').fadeIn();
+        });
+
+        $('#modalCloseAddChoice').click(function () {
+          $('#addChoiceModal').fadeOut();
+        });
+        $('#addChoiceModal').click(function (e) {
+          if (e.target === this) {
+            $('#addChoiceModal').fadeOut();
+          }
+        });
+
+        $('#addChoiceList li').click(function () {
+          const type = $(this).data('type');
+          $('#addChoiceModal').fadeOut();
+          
+          if (type === 'user') {
+            $('#addUserModal').fadeIn();
+            $('#errorDuplicateUser').hide();
+            $('#addUserForm')[0].reset();
+            $('#addUserForm .input-field').removeClass('invalid');
+            $('#addUserForm .custom-filter input').removeClass('invalid');
+            $('#addUserForm .error-message').hide();
+            $('#newUserRoleDisplay').val('');
+            $('#newUserEmployeeDisplay').val('');
+          } else if (type === 'role') {
+            $('#addRoleModal').fadeIn();
+            $('#errorDuplicateRole').hide();
+            $('#addRoleForm')[0].reset();
+            $('#addRoleForm .input-field').removeClass('invalid');
+            $('#addRoleForm .error-message').hide();
+          }
+        });
+
+        $('#modalCloseAddUser').click(function () {
+          $('#addUserModal').fadeOut();
+        });
+        $('#addUserModal').click(function (e) {
+          if (e.target === this) {
+            $('#addUserModal').fadeOut();
+          }
+        });
+
+        $('#modalCloseAddRole').click(function () {
+          $('#addRoleModal').fadeOut();
+        });
+        $('#addRoleModal').click(function (e) {
+          if (e.target === this) {
+            $('#addRoleModal').fadeOut();
+          }
+        });
+
+        $('#modalCloseUser').click(function () {
+          $('#updateUserModal').fadeOut();
+        });
+        $('#updateUserModal').click(function (e) {
+          if (e.target === this) {
+            $('#updateUserModal').fadeOut();
+          }
+        });
+
+        $('.update-role-btn').click(function () {
+          var roleId = $(this).data('id');
+          var name = $(this).data('name');
+
+          $('#modalRoleId').val(roleId);
+          $('#modalRoleName').val(name);
+          $('#updateRoleModal').fadeIn();
+          $('#modalUpdateRoleForm .input-field').removeClass('invalid');
+          $('#modalUpdateRoleForm .error-message').hide();
+          $('#errorUpdateRole').hide();
+        });
+
+        $('#modalCloseUpdateRole').click(function () {
+          $('#updateRoleModal').fadeOut();
+        });
+        $('#updateRoleModal').click(function (e) {
+          if (e.target === this) {
+            $('#updateRoleModal').fadeOut();
+          }
+        });
+
+        $('#modalCloseDeleteUser, #cancelDeleteUser').click(function () {
+          $('#deleteUserModal').fadeOut();
+        });
+        $('#deleteUserModal').click(function (e) {
+          if (e.target === this) {
+            $('#deleteUserModal').fadeOut();
+          }
+        });
+
+        $('.delete-role-btn').click(function () {
+          var roleId = $(this).data('id');
+          var name = $(this).data('name');
+          $('#deleteRoleId').val(roleId);
+          $('#deleteRoleConfirmText').html('Вы уверены, что хотите удалить роль <strong>' + name + '</strong>?');
+          $('#deleteRoleModal').fadeIn();
+        });
+
+        $('#modalCloseDeleteRole, #cancelDeleteRole').click(function () {
+          $('#deleteRoleModal').fadeOut();
+        });
+        $('#deleteRoleModal').click(function (e) {
+          if (e.target === this) {
+            $('#deleteRoleModal').fadeOut();
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

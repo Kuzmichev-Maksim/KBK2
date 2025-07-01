@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ошибка {{ error_code }}</title>
+
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/users.css' %}">
+    <link rel="stylesheet" href="{% static 'css/header.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="icon" type="image/x-icon" href="{% static 'images/KBK.ico' %}">
+</head>
+<body>
+    {% include 'header.html' %}
+
+    <div class="container">
+        <h1>Произошла ошибка</h1>
+        <div class="error-container">
+            <h2>Код ошибки: {{ error_code }}</h2>
+            <p class="error-message">{{ error_message }}</p>
+            <a href="{% url 'home' %}" class="submit-button">Вернуться на главную</a>
+        </div>
+    </div>
+
+    <style>
+        .error-container {
+            text-align: center;
+            padding: 40px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin: 20px auto;
+            max-width: 600px;
+        }
+
+        .error-container h2 {
+            color: #d9534f;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+
+        .error-message {
+            font-size: 1.2em;
+            color: #333;
+            margin-bottom: 30px;
+        }
+
+        .submit-button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+
+        .submit-button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{% load static %}
+
+<header>
+    <div class="navbar">
+        <p></p>
+        <nav>
+            <ul>
+                <li><a href="/dashboard/" class="employee"><i class="fas fa-users"></i><span>Сотрудники</span></a></li>
+                <li><a href="/numbers/" class="numbers"><i class="fas fa-phone"></i><span>Номера</span></a></li>
+                <li><a href="/history/" class="history"><i class="fa fa-history"></i><span>История</span></a></li>
+                <li><a href="/expenses/" class="expenses"><i class="fas fa-pie-chart"></i><span>Расходы</span></a></li>
+                <li><a href="/data/" class="data"><i class="fa fa-database"></i><span>Данные</span></a></li>
+                <li><a href="/users/" class="users"><i class="fas fa-user"></i><span>Пользователи</span></a></li>
+                <li class="logout"><a href="{% url 'logout_page' %}"><i class="fas fa-sign-out-alt"></i><span>Выход</span></a></li>
+            </ul>
+        </nav>
+    </div>
+</header>

@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    {% load static %}
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>История номеров и сотрудников</title>
+
+    <link rel="stylesheet" href="{% static 'css/history.css' %}" />
+    <link rel="stylesheet" href="{% static 'css/header.css' %}" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <link rel="icon" type="image/x-icon" href="{% static 'images/KBK.ico' %}" />
+    <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+  </head>
+  <body>
+    {% include 'header.html' %}
+
+    <h1>История номеров и сотрудников</h1>
+
+    <ul class="tab-menu">
+      <li class="{% if request.GET.tab != 'employee-history-tab' %}active{% endif %}" data-tab="phone-numbers-tab">История номеров</li>
+      <li class="{% if request.GET.tab == 'employee-history-tab' %}active{% endif %}" data-tab="employee-history-tab">История сотрудников</li>
+    </ul>
+
+    <div class="content-wrapper">
+      {% comment %} <div class="sidebar">
+        <div class="filter-container">
+          <label for="companyFilter">Компания:</label>
+          <div class="company-filter">
+            <input type="text" id="companyFilter" placeholder="Все компании" />
+            <ul class="company-drop"></ul>
+          </div>
+        </div>
+      </div> {% endcomment %}
+
+      <main>
+        <div id="phone-numbers-tab" class="tab-content {% if request.GET.tab != 'employee-history-tab' %}active{% endif %}">
+          <div class="phone-filter">
+            <input type="text" id="phoneFilter" placeholder="Поиск по номеру..." />
+          </div>
+          <div class="phone-number-grid">
+            {% for phone_number, history_items in grouped_histories.items %}
+              <div class="phone-number-card" onclick="openModal('phone-{{ phone_number|slugify }}')">
+                <p class="phone-number">{{ phone_number }}</p>
+                <p class="company">
+                  <strong>Компания:</strong> {% with last_history=history_items|last %}
+                    {{ last_history.company|default:'-' }}
+                  {% endwith %}
+                </p>
+                <p class="comment">
+                  <strong>Комментарий:</strong>
+                  {% with last_history=history_items|last %}
+                    {{ last_history.comment|default:'-' }}
+                  {% endwith %}
+                </p>
+              </div>
+              <div id="phone-{{ phone_number|slugify }}" class="modal">
+                <div class="modal-content">
+                  <span class="close" onclick="closeModal('phone-{{ phone_number|slugify }}')">×</span>
+                  <h2>История номера: {{ phone_number }}</h2>
+                  <p>
+                    <strong>Компания:</strong> {% with last_history=history_items|last %}
+                      {{ last_history.company|default:'-' }}
+                    {% endwith %}
+                  </p>
+                  <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="active_tab" value="phone-numbers-tab" />
+                    {% for history in history_items %}
+                      <div class="history-item">
+                        <p>
+                          <strong>Сотрудник:</strong> {{ history.employee_info }}
+                        </p>
+                        <p>
+                          <strong>Дата начала:</strong> {{ history.start_date|date:'d.m.Y' }}
+                        </p>
+                        <p>
+                          <strong>Дата конца:</strong> {{ history.end_date|date:'d.m.Y'|default:'-' }}
+                        </p>
+                        {% if history == history_items|last %}
+                          <label for="comment-{{ history.id }}">Комментарий:</label>
+                          <input type="text" id="comment-{{ history.id }}" name="comment_{{ history.id }}" value="{{ history.comment|default:'' }}" />
+                          <button type="submit" name="history_id" value="{{ history.id }}">Сохранить</button>
+                        {% else %}
+                          <p>
+                            <strong>Комментарий:</strong> {{ history.comment|default:'-' }}
+                          </p>
+                        {% endif %}
+                      </div>
+                      <hr />
+                    {% endfor %}
+                  </form>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+          <button id="loadMorePhones" style="display: none;">Показать больше</button>
+        </div>
+
+        <div id="employee-history-tab" class="tab-content {% if request.GET.tab == 'employee-history-tab' %}active{% endif %}">
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="active_tab" value="employee-history-tab" />
+            {% for employee_info, history_items in grouped_employee_histories.items %}
+              <div class="employee-section" data-company="{{ history_items.0.company|default:'—' }}">
+                <h2>Сотрудник: {{ employee_info }}</h2>
+                <div class="history-list">
+                  {% for history in history_items %}
+                    <div class="history-item">
+                      <p>
+                        <strong>Дата удаления:</strong> {{ history.deletion_date|date:'d.m.Y' }}
+                      </p>
+                      <p>
+                        <strong>Компания:</strong> {{ history.company }}
+                      </p>
+                      <p>
+                        <strong>Город:</strong> {{ history.city }}
+                      </p>
+                      <p>
+                        <strong>Должность:</strong> {{ history.position }}
+                      </p>
+                      <p>
+                        <strong>Отдел:</strong> {{ history.department }}
+                      </p>
+                      <div>
+                        <label for="employee-comment-{{ history.id }}">Комментарий:</label>
+                        <input type="text" id="employee-comment-{{ history.id }}" name="employee_comment_{{ history.id }}" value="{{ history.comment|default:'' }}" />
+                      </div>
+                      <button type="submit" name="employee_history_id" value="{{ history.id }}">Сохранить</button>
+                    </div>
+                    <hr />
+                  {% endfor %}
+                </div>
+              </div>
+            {% endfor %}
+          </form>
+          <button id="loadMoreEmployees" style="display: none;">Показать больше</button>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      document.querySelectorAll('.tab-menu li').forEach((tab) => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.tab-menu li').forEach((t) => t.classList.remove('active'));
+          tab.classList.add('active');
+          document.querySelectorAll('.tab-content').forEach((content) => content.classList.remove('active'));
+          document.getElementById(tab.dataset.tab).classList.add('active');
+
+          const companyFilterInput = document.querySelector('#companyFilter');
+          const employeeTab = document.getElementById('employee-history-tab');
+          if (employeeTab.classList.contains('active')) {
+            const userInput = companyFilterInput.value.toLowerCase();
+            if (userInput === 'все компании' || userInput === '') {
+              $('.employee-section').each(function (index) {
+                if (index < currentEmployeeLimit) {
+                  $(this).show();
+                } else {
+                  $(this).hide();
+                }
+              });
+            } else {
+              $('.employee-section').each(function (index) {
+                const section = $(this);
+                const sectionCompany = section.data('company');
+                if (sectionCompany.toLowerCase() === userInput && index < currentEmployeeLimit) {
+                  section.show();
+                } else {
+                  section.hide();
+                }
+              });
+            }
+            updateLoadMoreEmployeesVisibility();
+          } else {
+            $('.employee-section').each(function (index) {
+              if (index < currentEmployeeLimit) {
+                $(this).show();
+              } else {
+                $(this).hide();
+              }
+            });
+            companyFilterInput.value = 'Все компании';
+            updateLoadMorePhonesVisibility();
+          }
+        });
+      });
+
+      const initialPhoneLimit = 6;
+      const phoneIncrement = 6;
+      let currentPhoneLimit = initialPhoneLimit;
+
+      function updatePhoneCardsVisibility() {
+        const phoneCards = document.querySelectorAll('.phone-number-card');
+        phoneCards.forEach((card, index) => {
+          if (index < currentPhoneLimit) {
+            card.style.display = 'flex';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      }
+
+      function updateLoadMorePhonesVisibility() {
+        const phoneCards = document.querySelectorAll('.phone-number-card');
+        const visibleCards = Array.from(phoneCards).filter(card => card.style.display !== 'none');
+        const loadMoreButton = document.querySelector('#loadMorePhones');
+        if (visibleCards.length < phoneCards.length) {
+          loadMoreButton.style.display = 'block';
+        } else {
+          loadMoreButton.style.display = 'none';
+        }
+      }
+
+      const initialEmployeeLimit = 5;
+      const employeeIncrement = 5;
+      let currentEmployeeLimit = initialEmployeeLimit;
+
+      function updateEmployeeSectionsVisibility() {
+        const employeeSections = document.querySelectorAll('.employee-section');
+        employeeSections.forEach((section, index) => {
+          if (index < currentEmployeeLimit) {
+            section.style.display = 'block';
+          } else {
+            section.style.display = 'none';
+          }
+        });
+      }
+
+      function updateLoadMoreEmployeesVisibility() {
+        const employeeSections = document.querySelectorAll('.employee-section');
+        const visibleSections = Array.from(employeeSections).filter(section => section.style.display !== 'none');
+        const loadMoreButton = document.querySelector('#loadMoreEmployees');
+        if (visibleSections.length < employeeSections.length) {
+          loadMoreButton.style.display = 'block';
+        } else {
+          loadMoreButton.style.display = 'none';
+        }
+      }
+
+      const phoneFilterInput = document.querySelector('#phoneFilter');
+      phoneFilterInput.addEventListener('input', function () {
+        const filterValue = phoneFilterInput.value.toLowerCase().trim();
+        const phoneCards = document.querySelectorAll('.phone-number-card');
+
+        phoneCards.forEach(card => {
+          const phoneNumber = card.querySelector('.phone-number').textContent.toLowerCase();
+          if (filterValue === '' || phoneNumber.includes(filterValue)) {
+            card.style.display = 'flex';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+
+        updateLoadMorePhonesVisibility();
+      });
+
+      document.addEventListener('DOMContentLoaded', function () {
+        const urlParams = new URLSearchParams(window.location.search);
+        const tab = urlParams.get('tab') || 'phone-numbers-tab';
+        document.querySelectorAll('.tab-content').forEach((content) => content.classList.remove('active'));
+        document.querySelectorAll('.tab-menu li').forEach((t) => t.classList.remove('active'));
+        document.getElementById(tab).classList.add('active');
+        document.querySelector(`.tab-menu li[data-tab="${tab}"]`).classList.add('active');
+
+        updatePhoneCardsVisibility();
+        updateLoadMorePhonesVisibility();
+        updateEmployeeSectionsVisibility();
+        updateLoadMoreEmployeesVisibility();
+
+        document.querySelector('#loadMorePhones').addEventListener('click', function () {
+          currentPhoneLimit += phoneIncrement;
+          updatePhoneCardsVisibility();
+          updateLoadMorePhonesVisibility();
+        });
+
+        document.querySelector('#loadMoreEmployees').addEventListener('click', function () {
+          currentEmployeeLimit += employeeIncrement;
+          updateEmployeeSectionsVisibility();
+          updateLoadMoreEmployeesVisibility();
+        });
+
+        const companyFilterInput = document.querySelector('#companyFilter');
+        const companyDrop = document.querySelector('.company-drop');
+
+        const companies = [
+          'Все компании',
+          {% for company in companies %}
+            '{{ company.name|escapejs }}'{% if not forloop.last %},{% endif %}
+          {% endfor %}
+        ];
+
+        function showCompanyList(filterValue = '') {
+          const filteredCompanies = filterValue
+            ? companies.filter(company => company.toLowerCase().includes(filterValue.toLowerCase()) && company !== 'Все компании')
+            : companies.filter(company => company !== 'Все компании');
+
+          companyDrop.innerHTML = '';
+          filteredCompanies.forEach(company => {
+            const listItem = document.createElement('li');
+            listItem.textContent = company;
+            listItem.addEventListener('click', () => {
+              companyFilterInput.value = company;
+              companyDrop.style.height = '0';
+              companyDrop.innerHTML = '';
+              if (document.getElementById('employee-history-tab').classList.contains('active')) {
+                $('.employee-section').each(function (index) {
+                  const section = $(this);
+                  const sectionCompany = section.data('company');
+                  if (sectionCompany === company && index < currentEmployeeLimit) {
+                    section.show();
+                  } else {
+                    section.hide();
+                  }
+                });
+                updateLoadMoreEmployeesVisibility();
+              }
+            });
+            companyDrop.appendChild(listItem);
+          });
+
+          companyDrop.style.height = filteredCompanies.length > 0 ? 'auto' : '0';
+        }
+
+        companyFilterInput.addEventListener('input', function (e) {
+          const userInput = e.target.value.toLowerCase();
+          showCompanyList(userInput);
+
+          if (document.getElementById('employee-history-tab').classList.contains('active')) {
+            if (userInput === '' || userInput === 'все компании') {
+              $('.employee-section').each(function (index) {
+                if (index < currentEmployeeLimit) {
+                  $(this).show();
+                } else {
+                  $(this).hide();
+                }
+              });
+            } else {
+              $('.employee-section').each(function (index) {
+                const section = $(this);
+                const sectionCompany = section.data('company');
+                if (sectionCompany.toLowerCase() === userInput && index < currentEmployeeLimit) {
+                  section.show();
+                } else {
+                  section.hide();
+                }
+              });
+            }
+            updateLoadMoreEmployeesVisibility();
+          }
+        });
+
+        companyFilterInput.addEventListener('click', function () {
+          const userInput = companyFilterInput.value.toLowerCase();
+          if (userInput === 'все компании') {
+            companyFilterInput.value = '';
+            if (document.getElementById('employee-history-tab').classList.contains('active')) {
+              $('.employee-section').each(function (index) {
+                if (index < currentEmployeeLimit) {
+                  $(this).show();
+                } else {
+                  $(this).hide();
+                }
+              });
+              updateLoadMoreEmployeesVisibility();
+            }
+          }
+          showCompanyList(userInput);
+        });
+
+        document.addEventListener('click', function (e) {
+          if (!companyFilterInput.contains(e.target) && !companyDrop.contains(e.target)) {
+            companyDrop.style.height = '0';
+            companyDrop.innerHTML = '';
+          }
+        });
+      });
+
+      function openModal(modalId) {
+        document.getElementById(modalId).style.display = 'flex';
+      }
+
+      function closeModal(modalId) {
+        document.getElementById(modalId).style.display = 'none';
+      }
+
+      window.addEventListener('click', function (event) {
+        if (event.target.classList.contains('modal')) {
+          event.target.style.display = 'none';
+        }
+      });
+    </script>
+  </body>
+</html>
